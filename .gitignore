@@ -1,0 +1,7 @@
+.repo-init/
+.tmp/
+tmp/
+__pycache__/
+*.pyc
+repo-init/.tmp/
+repo-init/scripts/__pycache__/
