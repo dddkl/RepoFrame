@@ -42,6 +42,34 @@ Describe why this task exists and how it connects to `PROJECT.md`.
 - Assumptions: `<assumptions>`
 - Risks: `<known risks>`
 
+## Assumption Checks
+
+### Validated
+
+- `<validated assumption or none>`
+
+### Invalidated
+
+- `<invalidated assumption or none>`
+
+### Still Open
+
+- `<assumption still open or none>`
+
+## Downstream Impact
+
+Record cross-task impact here whenever current execution changes ordering, blockers, acceptance, or clarification needs.
+
+If an `Execution Log` entry changes downstream work, reflect that here as well.
+
+### Affected Tasks
+
+- `<task-id or none>`
+
+### Suggested Follow-up
+
+- `<recommended downstream update or none>`
+
 ## Execution Log
 
 Record milestone-level progress here. Each entry should summarize one meaningful execution batch, task-status transition, blocker change, or user-directed change of course.

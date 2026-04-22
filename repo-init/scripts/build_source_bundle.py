@@ -12,6 +12,7 @@ from typing import Any
 from doctor import collect_runtime_status
 from extract_project_source import extract_from_path
 from normalize_project_intake import normalize_intake
+from project_text import extract_use_stack, find_labeled_value, find_section, split_list_items
 from repo_init_common import clamp, first_non_empty_line, normalize_text, slugify, unique, utc_now_iso, write_json
 
 
@@ -159,46 +160,23 @@ def split_sentences(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
 
 
-def find_section(text: str, names: list[str]) -> str:
-    """Find a markdown-like or plain-text section."""
-    lowered = {name.lower() for name in names}
-    lines = text.splitlines()
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        candidate = stripped.lstrip("#").strip().rstrip(":").lower()
-        if candidate in lowered:
-            collected: list[str] = []
-            for follow in lines[index + 1 :]:
-                next_line = follow.strip()
-                if not next_line:
-                    if collected:
-                        break
-                    continue
-                next_candidate = next_line.lstrip("#").strip().rstrip(":").lower()
-                if next_candidate in lowered:
-                    break
-                if next_line.startswith("#") and collected:
-                    break
-                if next_line.rstrip(":").lower() in lowered and collected:
-                    break
-                collected.append(next_line)
-            return normalize_text("\n".join(collected))
-    return ""
-
-
-def find_labeled_value(text: str, labels: list[str]) -> str:
-    """Find a single-line labeled value."""
-    patterns = [re.escape(label) for label in labels]
-    match = re.search(rf"(?:{'|'.join(patterns)})\s*[:\uFF1A]\s*(.+?)(?:$|\n)", text, re.IGNORECASE)
-    return normalize_text(match.group(1)) if match else ""
-
-
-def split_list_items(text: str) -> list[str]:
-    """Split free-form list text into items."""
-    raw = text.replace("\n", ", ")
-    raw = raw.replace(" and ", ", ")
-    items = [item.strip(" -") for item in raw.split(",")]
-    return unique([item for item in items if item])
+def infer_prompt_sections(text: str) -> list[str]:
+    """Infer pseudo-sections from a rich prompt to support complexity assessment."""
+    section_map = [
+        ("API", "api"),
+        ("Integration", "integration"),
+        ("Database", "database"),
+        ("Auth", "auth"),
+        ("Sync", "sync"),
+        ("Queue", "queue"),
+        ("Pipeline", "pipeline"),
+        ("Storage", "storage"),
+        ("Service", "service"),
+        ("Validation", "validation"),
+        ("Release safety", "release safety"),
+    ]
+    lowered = text.lower()
+    return [label for label, keyword in section_map if keyword in lowered]
 
 
 def infer_project_name(title: str, text: str, default_name: str) -> str:
@@ -237,8 +215,7 @@ def infer_prompt_snapshot(prompt_text: str, repo_root: Path) -> dict[str, Any]:
     goal = goal_match.group(1).strip() if goal_match else (sentences[1].rstrip(".") if len(sentences) > 1 else "")
 
     users = find_labeled_value(text, ["users", "target users", "audience"])
-    stack_match = re.search(r"\buse\s+(.+?)(?:[.\n]|$)", text, re.IGNORECASE)
-    stack = split_list_items(stack_match.group(1)) if stack_match else []
+    stack = extract_use_stack(text)
 
     constraints = []
     if stack:
@@ -548,7 +525,12 @@ def build_source_bundle(
     bundle_confidence = estimate_bundle_confidence(source_entries, prompt_snapshot, len(conflicts))
     clarification_questions = unique(clarification_questions)
     bundle_warnings = unique(bundle_warnings)
-    sections = unique([section for entry in source_entries for section in entry["sections"]])[:20]
+    sections = unique(
+        [
+            *(section for entry in source_entries for section in entry["sections"]),
+            *infer_prompt_sections(prompt_text),
+        ]
+    )[:20]
 
     if source_entries:
         top_source_type = "bundle" if len(source_entries) > 1 else "file"

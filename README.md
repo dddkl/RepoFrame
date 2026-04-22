@@ -51,6 +51,8 @@ It supports:
 - importing multiple project-plan files in one initialization request
 - importing `.md`, `.txt`, `.docx`, `.pdf`, and `.html` project plans
 - hydrating an existing repository without rewriting user-authored project material by default
+- automatically decomposing complex projects into a coordinating master task plus first-wave child tasks
+- keeping latest feedback, downstream task impact, and suggested replans visible in `STATUS.md` and task files
 - asking for clarification in Codex when conflicts or missing facts materially affect initialization
 
 ## Install
@@ -146,4 +148,3 @@ The canonical skill behavior is defined inside [`repo-init/references/`](./repo-
 
 - [`repo-init/`](./repo-init): installable skill source
 - [`template/`](./template): example collaboration files and task template
-- [`OPEN_SOURCE_READINESS.md`](./OPEN_SOURCE_READINESS.md): current release-readiness assessment

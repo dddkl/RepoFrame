@@ -18,6 +18,7 @@ Use the deterministic single-entry workflow in `scripts/initialize_repo.py` inst
 - Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, and `tasks/` to an existing repository.
 - Normalize plan intake from `.md`, `.txt`, `.docx`, `.pdf`, `.html`, or prompt-only input before deciding what to write.
 - Accept multiple source files and treat the first one as authoritative by default when the user does not explicitly name a primary source.
+- Automatically decompose complex projects into a coordinating master task plus child tasks while keeping simple projects on a single-task path.
 
 ## Skill path
 
@@ -105,7 +106,20 @@ Review:
 - `.repo-init/policy.json`
 - `.repo-init/init-report.md`
 
-6. Use the low-level scripts only for debugging.
+6. Stop after initialization unless the user explicitly asks to continue.
+Initialization is complete once the collaboration files, first task, and initialization report exist.
+
+Default completion behavior:
+- summarize what was created or preserved
+- point the user to `STATUS.md`, the master task or first task, and `.repo-init/init-report.md`
+- stop and wait for the next instruction
+
+Do not:
+- start implementing the first task automatically
+- create extra scaffolding beyond the initialization contract unless the user explicitly asked for it
+- treat the suggested `Next Step` in `STATUS.md` as permission to execute it in the same turn
+
+7. Use the low-level scripts only for debugging.
 The low-level scripts remain available when you need to inspect one stage in isolation:
 - `build_source_bundle.py`
 - `extract_project_source.py`
@@ -125,7 +139,16 @@ The low-level scripts remain available when you need to inspect one stage in iso
 - Separate extraction from interpretation; do not infer initialization mode inside the extraction step.
 - Prefer the smallest safe collaboration state when intake confidence is low.
 - Create a clarification task instead of inventing missing project facts.
+- For complex projects, create one coordinating master task plus first-wave child tasks instead of a single oversized first task.
+- Keep `STATUS.md` pointed at the master task until a child task is explicitly chosen for execution.
+- When a task hits a milestone, blocker change, acceptance change, invalidated assumption, or user-directed change, update that task's `Assumption Checks` and `Downstream Impact` before closing the execution batch.
+- When task-local feedback affects unfinished work, update the coordinating master task `Feedback Ledger` plus `STATUS.md` `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
+- For single-task work, let `STATUS.md` carry the current feedback and replan suggestion without inventing a coordinating task.
+- Treat `Recommended Replan` as suggestion space; do not rewrite untouched task status or acceptance criteria from a single unconfirmed feedback cycle.
+- Record only durable accepted adjustments in `DECISIONS.md`; keep temporary feedback and replan suggestions out of it.
 - Keep all writes inside the explicit `--repo` target and that repository's `.repo-init/` artifact directory.
+- Treat initialization as complete when the collaboration layer and initialization report have been written.
+- Do not begin implementation after initialization unless the user explicitly asks for post-init execution.
 
 ## Reference map
 

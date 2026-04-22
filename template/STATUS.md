@@ -12,9 +12,21 @@ This file is the operational snapshot for the current working state.
 - Status: `<not started | in progress | blocked | review | done>`
 - Summary: `<one short paragraph>`
 
+## Latest Feedback
+
+- `<1-3 high-signal conclusions from the latest execution batch, or none>`
+
+## Task Impact
+
+- `<task-id or none>`: `<keep | reorder | block | split | revise-acceptance | clarify>` because `<impact summary>`
+
+## Recommended Replan
+
+- `Suggested only:` `<recommended downstream adjustment or none>`
+
 ## Next Step
 
-- `<single recommended next action>`
+- `<single recommended next action based on the current feedback>`
 
 ## Blockers
 

@@ -73,11 +73,16 @@ Prefer preservation over generation when signals conflict.
 2. Run intake extraction, normalization, and bundle merging.
 3. Classify the initialization mode.
 4. Compute per-file write policy.
-5. Produce or update `PROJECT.md`.
-6. Produce or update `STATUS.md`.
-7. Produce or update `DECISIONS.md` if a real initialization decision exists.
-8. Create the first actionable task file.
-9. Emit an initialization report.
+5. Assess repository complexity from intake plus repository summary.
+6. Choose between a single first task or a decomposed task set.
+7. Produce or update `PROJECT.md`.
+8. Produce or update `STATUS.md`.
+9. Produce or update `DECISIONS.md` if a real initialization decision exists.
+10. Create the first actionable task or task set.
+11. Emit an initialization report.
+12. Stop after initialization and wait for explicit user direction before any implementation work.
+
+The existence of a `Next Step` in `STATUS.md` or a concrete first task does not authorize the initializer to execute that work in the same turn.
 
 ## Failure handling
 
@@ -87,9 +92,29 @@ When the input is incomplete or extraction confidence is low:
 - create the smallest safe collaboration layer
 - record assumptions explicitly
 - create a clarification task instead of fabricating project facts
+- stop after writing the safe initialization state
+
+When the project is complex enough for decomposition:
+
+- automatically create one coordinating master task
+- automatically create `3-7` child tasks for the first wave of work
+- keep `STATUS.md` pointed at the master task
+- keep the recommended child task explicit without marking it started
+- stop after initialization; do not execute any child task
 
 When multiple sources disagree on key fields:
 
 - keep the current chosen value explicit
 - record the conflict rather than flattening it away
 - surface clarification questions when the disagreement materially affects initialization
+
+## Feedback-Driven Follow-Through
+
+The generated collaboration layer must preserve room for execution feedback and downstream task adjustment:
+
+- `STATUS.md` should reserve `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
+- Task files should reserve `Assumption Checks` and `Downstream Impact`.
+- For decomposed work, child-task feedback should flow into the coordinating master task's `Feedback Ledger`.
+- `Replan Decisions` should contain only explicitly accepted downstream adjustments.
+- Agent suggestions may recommend `keep`, `reorder`, `block`, `split`, `revise-acceptance`, or `clarify`, but should not directly rewrite untouched task status or acceptance criteria until the change is explicitly accepted.
+- `DECISIONS.md` should store only durable accepted outcomes, not temporary feedback or unaccepted suggestions.
