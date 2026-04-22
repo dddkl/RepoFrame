@@ -44,4 +44,8 @@ Describe why this task exists and how it connects to `PROJECT.md`.
 
 ## Execution Log
 
+Record milestone-level progress here. Each entry should summarize one meaningful execution batch, task-status transition, blocker change, or user-directed change of course.
+
+Do not log every file save, every tiny edit, or every formatting-only change.
+
 - `<YYYY-MM-DD>`: task created

@@ -29,27 +29,64 @@ def render_markdown(intake: dict, mode_json: dict, policy_json: dict, assumption
     grouped = summarize_policy(policy_json)
     warnings = [*intake.get("warnings", []), *extra_warnings]
     source_path = intake.get("source_path") or "prompt-only input"
+    source_roles = intake.get("source_roles") or []
+    conflicts = intake.get("conflicts") or []
+    clarification_questions = intake.get("clarification_questions") or []
+    adopted_defaults = intake.get("adopted_defaults") or []
 
     lines = [
         "# Initialization Report",
         "",
         f"- Mode: `{mode_json['mode']}`",
-        f"- Source: `{source_path}`",
+        f"- Primary source: `{intake.get('primary_source') or source_path}`",
+        f"- Source count: `{intake.get('source_count', 0)}`",
         f"- Title: `{intake.get('title') or 'Untitled project input'}`",
-        f"- Confidence: `{intake.get('confidence')}`",
+        f"- Bundle confidence: `{intake.get('bundle_confidence', intake.get('confidence'))}`",
         "",
-        "## Planned File Actions",
-        "",
-        f"- Create: {', '.join(grouped['create']) or 'none'}",
-        f"- Supplement: {', '.join(grouped['supplement']) or 'none'}",
-        f"- Preserve: {', '.join(grouped['preserve']) or 'none'}",
-        f"- Rewrite: {', '.join(grouped['rewrite']) or 'none'}",
-        "",
-        "## Assumptions",
+        "## Sources",
         "",
     ]
+    if source_roles:
+        lines.extend(
+            [f"- `{item['label']}`: role=`{item['role']}`, confidence=`{item['confidence']}`" for item in source_roles]
+        )
+    else:
+        lines.append(f"- `{source_path}`")
+
+    lines.extend(
+        [
+            "",
+            "## Planned File Actions",
+            "",
+            f"- Create: {', '.join(grouped['create']) or 'none'}",
+            f"- Supplement: {', '.join(grouped['supplement']) or 'none'}",
+            f"- Preserve: {', '.join(grouped['preserve']) or 'none'}",
+            f"- Rewrite: {', '.join(grouped['rewrite']) or 'none'}",
+            "",
+            "## Assumptions",
+            "",
+        ]
+    )
     if assumptions:
         lines.extend([f"- {item}" for item in assumptions])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Adopted Defaults", ""])
+    if adopted_defaults:
+        lines.extend([f"- {item}" for item in adopted_defaults])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Conflicts", ""])
+    if conflicts:
+        lines.extend([f"- `{item['field']}`: chose `{item['chosen_from']}` over `{item['discarded_from']}`" for item in conflicts])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Clarification Questions", ""])
+    if clarification_questions:
+        lines.extend([f"- {item}" for item in clarification_questions])
     else:
         lines.append("- none")
 
@@ -86,12 +123,18 @@ def main() -> int:
         if args.format == "json":
             payload = {
                 "mode": mode_json["mode"],
-                "source_files_used": [intake.get("source_path")] if intake.get("source_path") else [],
+                "source_files_used": [item["path"] for item in intake.get("source_roles", []) if item.get("path")],
+                "primary_source": intake.get("primary_source"),
+                "source_roles": intake.get("source_roles", []),
                 "files_created": grouped["create"],
                 "files_supplemented": grouped["supplement"],
                 "files_preserved": grouped["preserve"],
                 "files_rewritten": grouped["rewrite"],
                 "assumptions": args.assumption,
+                "adopted_defaults": intake.get("adopted_defaults", []),
+                "conflicts": intake.get("conflicts", []),
+                "clarification_questions": intake.get("clarification_questions", []),
+                "bundle_confidence": intake.get("bundle_confidence", intake.get("confidence")),
                 "warnings": [*intake.get("warnings", []), *args.warning],
             }
             text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"

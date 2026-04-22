@@ -1,6 +1,6 @@
 ---
 name: repo-init
-description: Initialize repositories from a natural-language prompt or an existing project plan, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/, while preserving user-authored project plans by default.
+description: Initialize repositories from a natural-language prompt or one or more existing project-plan files, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/, while preserving user-authored project plans by default.
 ---
 
 # Repo Init Skill
@@ -14,9 +14,10 @@ Use the deterministic single-entry workflow in `scripts/initialize_repo.py` inst
 ## When to use
 
 - Initialize a new repository from a single prompt.
-- Import an existing project plan into the RepoFrame collaboration template.
+- Import one or more existing project-plan files into the RepoFrame collaboration template.
 - Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, and `tasks/` to an existing repository.
 - Normalize plan intake from `.md`, `.txt`, `.docx`, `.pdf`, `.html`, or prompt-only input before deciding what to write.
+- Accept multiple source files and treat the first one as authoritative by default when the user does not explicitly name a primary source.
 
 ## Skill path
 
@@ -33,7 +34,7 @@ $CODEX_HOME/skills/repo-init
 1. Identify the input source.
 Treat the request as one of three entry modes:
 - prompt only
-- prompt plus a local project-plan file
+- prompt plus one or more local project-plan files
 - existing repository hydration
 
 2. Check the runtime first.
@@ -45,7 +46,22 @@ python "$CODEX_HOME/skills/repo-init/scripts/doctor.py"
 
 If the runtime is missing dependencies, stop and fix the environment first. See `references/runtime.md`.
 
-3. Run the deterministic entry point.
+3. Build the source bundle when files are involved.
+Use the bundle builder when the user supplies multiple files, or when the prompt appears to mention file paths:
+
+```bash
+python "$CODEX_HOME/skills/repo-init/scripts/build_source_bundle.py" \
+  --repo . \
+  --prompt "Initialize this repository from docs/vision.md and docs/requirements.md. Use docs/vision.md as the primary source." \
+  --source docs/vision.md \
+  --source docs/requirements.md \
+  --primary-source docs/vision.md \
+  --artifacts-dir .repo-init
+```
+
+If the bundle contains `clarification_questions`, ask the user before proceeding when you are working interactively in Codex. If the user does not answer, continue conservatively and let the generated workspace record the unresolved questions.
+
+4. Run the deterministic entry point.
 Always pass the target repository explicitly with `--repo`. Do not rely on the current working directory to decide where files should be written.
 
 Prompt-only example:
@@ -64,7 +80,18 @@ python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
   --source docs/project-plan.docx
 ```
 
-4. Review the repository-local artifacts.
+Multi-file example:
+
+```bash
+python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
+  --repo . \
+  --prompt "Initialize this repository from docs/vision.md and docs/requirements.md. Use docs/vision.md as the primary source." \
+  --source docs/vision.md \
+  --source docs/requirements.md \
+  --primary-source docs/vision.md
+```
+
+5. Review the repository-local artifacts.
 The initialization pipeline stores normalized artifacts under:
 
 ```text
@@ -78,8 +105,9 @@ Review:
 - `.repo-init/policy.json`
 - `.repo-init/init-report.md`
 
-5. Use the low-level scripts only for debugging.
+6. Use the low-level scripts only for debugging.
 The low-level scripts remain available when you need to inspect one stage in isolation:
+- `build_source_bundle.py`
 - `extract_project_source.py`
 - `normalize_project_intake.py`
 - `classify_init_mode.py`
@@ -91,6 +119,8 @@ The low-level scripts remain available when you need to inspect one stage in iso
 - Preserve user-authored project plans by default.
 - Use `initialize_repo.py` as the default execution path.
 - Use `doctor.py` before file-ingest workflows when the runtime may be fresh.
+- Let multi-file intake default to prompt order unless the user explicitly identifies a primary source.
+- When `clarification_questions` exist and you are in an interactive Codex thread, ask the user before finalizing if the conflict materially affects initialization.
 - Treat `PROJECT.md` as a compatibility layer when a prior plan already exists.
 - Separate extraction from interpretation; do not infer initialization mode inside the extraction step.
 - Prefer the smallest safe collaboration state when intake confidence is low.
@@ -108,6 +138,7 @@ The low-level scripts remain available when you need to inspect one stage in iso
 ## Script map
 
 - `scripts/doctor.py`: verify Python version and required runtime dependencies
+- `scripts/build_source_bundle.py`: extract, normalize, and merge multiple project-plan sources
 - `scripts/initialize_repo.py`: run the end-to-end deterministic initialization flow
 - `scripts/extract_project_source.py`: extract text and metadata from prompt or local project-plan files
 - `scripts/normalize_project_intake.py`: convert raw extraction into the normalized intake schema
@@ -118,5 +149,5 @@ The low-level scripts remain available when you need to inspect one stage in iso
 ## Validation
 
 - Run `quick_validate.py` after editing the skill folder.
-- Smoke-test prompt-only, file-ingest, and hydrate flows with the bundled scripts.
+- Smoke-test prompt-only, file-ingest, multi-file ingest, conflict, and hydrate flows with the bundled scripts.
 - If file extraction is weak, preserve the source and generate warnings rather than forcing a rewrite.

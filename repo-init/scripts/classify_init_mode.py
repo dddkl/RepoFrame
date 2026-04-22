@@ -13,6 +13,12 @@ from repo_init_common import load_json, summarize_repo, write_json
 def choose_mode(intake: dict, repo_summary: dict) -> tuple[str, list[str]]:
     """Choose greenfield, plan-ingest, or repo-hydrate."""
     reasons: list[str] = []
+    sources = intake.get("sources") or []
+    file_sources = [source for source in sources if source.get("path")]
+    if file_sources:
+        reasons.append("At least one source file was provided in the intake bundle.")
+        return "plan-ingest", reasons
+
     if intake.get("source_type") == "file" and intake.get("source_path"):
         reasons.append("Authoritative source file was provided in the intake.")
         return "plan-ingest", reasons

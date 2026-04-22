@@ -10,17 +10,13 @@ import shutil
 import sys
 from pathlib import Path
 
+from build_source_bundle import build_source_bundle
 from classify_init_mode import choose_mode
-from doctor import collect_runtime_status
-from extract_project_source import extract_from_path, extract_prompt
-from normalize_project_intake import normalize_intake
 from plan_write_policy import build_write_policy
 from render_init_report import render_markdown
 from repo_init_common import (
     DEFAULT_ARTIFACT_DIRNAME,
     MANAGED_MARKER,
-    classify_text_state,
-    first_non_empty_line,
     normalize_text,
     slugify,
     summarize_repo,
@@ -36,10 +32,11 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, help="Target repository root to initialize.")
-    source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--prompt", help="Prompt text for greenfield or hydrate initialization.")
-    source.add_argument("--prompt-file", help="Path to a text file containing the prompt.")
-    source.add_argument("--source", help="Path to a project-plan file.")
+    prompt_group = parser.add_mutually_exclusive_group()
+    prompt_group.add_argument("--prompt", help="Prompt text for greenfield or hydrate initialization.")
+    prompt_group.add_argument("--prompt-file", help="Path to a text file containing the prompt.")
+    parser.add_argument("--source", action="append", default=[], help="Path to a project-plan file. Repeat as needed.")
+    parser.add_argument("--primary-source", help="Optional authoritative source path.")
     parser.add_argument("--artifacts-dir", help="Optional override for the artifact directory.")
     parser.add_argument("--report-path", help="Optional override for the init report path.")
     parser.add_argument("--rewrite-project", action="store_true", help="Allow rewriting PROJECT.md.")
@@ -53,7 +50,7 @@ def load_prompt(args: argparse.Namespace) -> str:
         return args.prompt
     if args.prompt_file:
         return Path(args.prompt_file).read_text(encoding="utf-8")
-    raise ValueError("Prompt text was not provided.")
+    return ""
 
 
 def select_artifacts_dir(repo_root: Path, requested: str | None) -> Path:
@@ -61,36 +58,6 @@ def select_artifacts_dir(repo_root: Path, requested: str | None) -> Path:
     if requested:
         return Path(requested).resolve()
     return repo_root / DEFAULT_ARTIFACT_DIRNAME
-
-
-def collect_source_inputs(args: argparse.Namespace, repo_root: Path, artifacts_dir: Path) -> tuple[dict, dict]:
-    """Run extraction and normalization."""
-    if args.source:
-        source_path = Path(args.source).resolve()
-        runtime = collect_runtime_status(str(source_path), [])
-        if not runtime["ok"]:
-            checks = [check["message"] for check in runtime["checks"] if not check["ok"]]
-            raise RuntimeError(
-                "Runtime is missing required dependencies. "
-                + " ".join(checks or [f"Use Python {runtime['minimum_python_version']}+"])
-                + f" Install with `{runtime['install_hint']}`."
-            )
-        raw = extract_from_path(source_path)
-        extracted_text_output = artifacts_dir / f"{source_path.stem}.extracted.md"
-    else:
-        raw = extract_prompt(load_prompt(args))
-        extracted_text_output = None
-
-    normalized = normalize_intake(raw, str(extracted_text_output) if extracted_text_output else None)
-    return raw, normalized
-
-
-def split_sentences(text: str) -> list[str]:
-    """Split text into simple sentences."""
-    normalized = normalize_text(text)
-    if not normalized:
-        return []
-    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", normalized) if part.strip()]
 
 
 def find_section(text: str, names: list[str]) -> str:
@@ -120,6 +87,13 @@ def find_section(text: str, names: list[str]) -> str:
     return ""
 
 
+def find_labeled_value(text: str, labels: list[str]) -> str:
+    """Find a single-line labeled value."""
+    patterns = [re.escape(label) for label in labels]
+    match = re.search(rf"(?:{'|'.join(patterns)})\s*[:：]\s*(.+?)(?:$|\n)", text, re.IGNORECASE)
+    return normalize_text(match.group(1)) if match else ""
+
+
 def split_stack_items(text: str) -> list[str]:
     """Split a stack sentence or section into items."""
     raw = text.replace("\n", ", ")
@@ -128,19 +102,19 @@ def split_stack_items(text: str) -> list[str]:
     return unique([item for item in items if item])
 
 
-def infer_project_name(intake: dict, text: str, repo_root: Path) -> str:
+def infer_project_name(title: str, text: str, repo_root: Path) -> str:
     """Infer a project name."""
     patterns = [
         r"\bcalled\s+([A-Z][A-Za-z0-9_-]+)",
         r"\bnamed\s+([A-Z][A-Za-z0-9_-]+)",
+        r"^\s*project\s*[:：]\s*([A-Za-z0-9 _-]+)$",
     ]
     for pattern in patterns:
-        match = re.search(pattern, text)
+        match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
         if match:
-            return match.group(1)
-    title = intake.get("title") or ""
+            return normalize_text(match.group(1))
     if title and title.lower() not in {"prompt input", "project-plan", "untitled project input"}:
-        cleaned = re.sub(r"\b(html|docx|pdf)\b.*$", "", str(title), flags=re.IGNORECASE).strip(" -")
+        cleaned = re.sub(r"\b(html|docx|pdf)\b.*$", "", title, flags=re.IGNORECASE).strip(" -")
         if cleaned:
             return cleaned
     return repo_root.name or "Project"
@@ -148,42 +122,24 @@ def infer_project_name(intake: dict, text: str, repo_root: Path) -> str:
 
 def infer_greenfield_fields(intake: dict, repo_root: Path) -> dict:
     """Infer structured fields from prompt input."""
-    text = intake["extracted_text"]
-    sentences = split_sentences(text)
-    name = infer_project_name(intake, text, repo_root)
-    project_type = "project"
-    type_match = re.search(r"initialize this repository as (?:an?|the)\s+(.+?)(?:\s+called|\s+named|\.|,|\n)", text, re.IGNORECASE)
-    if type_match:
-        project_type = type_match.group(1).strip()
-
-    stage_match = re.search(r"stage is\s+([A-Za-z0-9-]+)", text, re.IGNORECASE)
-    stage = stage_match.group(1).lower() if stage_match else "prototype"
-
-    goal = ""
-    goal_match = re.search(r"goal is to\s+(.+?)(?:[.\n]|$)", text, re.IGNORECASE)
-    if goal_match:
-        goal = goal_match.group(1).strip()
-    elif len(sentences) > 1:
-        goal = sentences[1].rstrip(".")
-    else:
-        goal = "Clarify the primary project outcome."
-
+    text = intake.get("extracted_text", "")
+    name = infer_project_name(intake.get("title") or "", text, repo_root)
+    goal = find_labeled_value(text, ["goal", "objective", "purpose"])
+    project_type_match = re.search(r"initialize this repository as (?:an?|the)\s+(.+?)(?:\s+called|\s+named|\.|,|\n)", text, re.IGNORECASE)
+    project_type = project_type_match.group(1).strip() if project_type_match else "project"
+    stage = find_labeled_value(text, ["stage"]).lower()
     stack_match = re.search(r"\buse\s+(.+?)(?:[.\n]|$)", text, re.IGNORECASE)
     stack = split_stack_items(stack_match.group(1)) if stack_match else []
-
-    non_goals = [sentence.rstrip(".") for sentence in sentences if sentence.lower().startswith("do not ")]
     constraints = []
     if stack:
         constraints.append("Use " + ", ".join(stack) + ".")
-    constraints.extend(non_goals)
-    if "local-first" in text.lower():
-        constraints.append("Keep the workflow local-first.")
-
+    constraints.extend([line.strip() for line in text.splitlines() if line.lower().startswith("do not ")])
     return {
         "name": name,
         "project_type": project_type,
-        "stage": stage,
-        "goal": goal.rstrip("."),
+        "stage": stage or "prototype",
+        "goal": goal or "Clarify the primary project outcome.",
+        "users": find_labeled_value(text, ["users", "target users", "audience"]),
         "stack": stack,
         "constraints": unique(constraints),
         "assumptions": [
@@ -195,30 +151,119 @@ def infer_greenfield_fields(intake: dict, repo_root: Path) -> dict:
 
 def infer_plan_snapshot(intake: dict, repo_root: Path) -> dict:
     """Infer a safe project snapshot from plan-ingest input."""
-    text = intake["extracted_text"]
-    goal = find_section(text, ["goal", "primary goal"])
-    users = find_section(text, ["users", "target users"])
-    stack = find_section(text, ["stack", "tech stack", "technology stack"])
-    constraints = find_section(text, ["constraints"])
-
-    stack_items = split_stack_items(stack) if stack else []
-    constraint_lines = unique([line.strip("- ") for line in constraints.splitlines() if line.strip()]) if constraints else []
-
+    text = intake.get("extracted_text", "")
+    goal = find_section(text, ["goal", "primary goal"]) or find_labeled_value(text, ["goal", "objective", "purpose"])
+    users = find_section(text, ["users", "target users"]) or find_labeled_value(text, ["users", "target users", "audience"])
+    stack = find_section(text, ["stack", "tech stack", "technology stack"]) or find_labeled_value(
+        text,
+        ["stack", "tech stack", "technology stack"],
+    )
+    constraints = find_section(text, ["constraints"]) or find_labeled_value(text, ["constraints"])
     return {
-        "name": infer_project_name(intake, text, repo_root),
-        "goal": goal.rstrip(".") if goal else "",
-        "users": users.rstrip(".") if users else "",
-        "stack": stack_items,
-        "constraints": constraint_lines,
+        "name": infer_project_name(intake.get("title") or "", text, repo_root),
+        "project_type": find_labeled_value(text, ["type", "project type"]),
+        "stage": find_labeled_value(text, ["stage"]).lower(),
+        "goal": goal.rstrip("."),
+        "users": users.rstrip("."),
+        "stack": split_stack_items(stack) if stack else [],
+        "constraints": unique([line.strip("- ") for line in constraints.splitlines() if line.strip()]) if constraints else [],
         "assumptions": [
             "The provided source document remains the authoritative project definition unless the user asks for a rewrite.",
         ],
     }
 
 
+def merged_summary(intake: dict, repo_root: Path, mode: str) -> dict:
+    """Build a project summary from bundle intake with backwards-compatible fallbacks."""
+    base = {
+        "name": repo_root.name or "Project",
+        "project_type": "project",
+        "stage": "",
+        "goal": "",
+        "users": "",
+        "stack": [],
+        "constraints": [],
+        "assumptions": [],
+    }
+    merged = intake.get("merged_snapshot") or {}
+    for key in base:
+        value = merged.get(key)
+        if value not in (None, "", []):
+            base[key] = value
+
+    fallback = infer_greenfield_fields(intake, repo_root) if mode == "greenfield" else infer_plan_snapshot(intake, repo_root)
+    for key in base:
+        if base[key] in (None, "", []):
+            base[key] = fallback.get(key, base[key])
+
+    base["assumptions"] = unique([*(fallback.get("assumptions") or []), *(merged.get("assumptions") or []), *(base.get("assumptions") or [])])
+    return base
+
+
 def low_confidence(intake: dict) -> bool:
     """Return True when intake should be handled conservatively."""
-    return intake.get("confidence", 0) < 0.5 or not intake.get("extracted_text", "").strip()
+    confidence = intake.get("bundle_confidence", intake.get("confidence", 0))
+    return confidence < 0.5 or not intake.get("extracted_text", "").strip()
+
+
+def needs_clarification(intake: dict) -> bool:
+    """Return True when unresolved questions remain."""
+    return low_confidence(intake) or bool(intake.get("clarification_questions"))
+
+
+def repo_state_snapshot(repo_root: Path) -> dict[str, str | list[str]]:
+    """Infer coarse repository identity from existing docs."""
+    texts: list[str] = []
+    for name in ("PROJECT.md", "README.md"):
+        path = repo_root / name
+        if path.exists():
+            texts.append(path.read_text(encoding="utf-8", errors="replace"))
+    text = normalize_text("\n\n".join(texts))
+    if not text:
+        return {}
+    title = text.splitlines()[0].lstrip("# ").strip() if text.splitlines() else repo_root.name
+    stack = find_section(text, ["preferred stack", "stack", "tech stack"]) or find_labeled_value(text, ["stack", "tech stack"])
+    return {
+        "name": infer_project_name(title, text, repo_root),
+        "goal": find_section(text, ["goal"]) or find_labeled_value(text, ["goal", "objective"]),
+        "stack": split_stack_items(stack) if stack else [],
+    }
+
+
+def canonical_field_value(value: str | list[str]) -> str:
+    """Canonicalize values for comparison."""
+    if isinstance(value, list):
+        return " | ".join(sorted(unique([normalize_text(item).lower() for item in value if normalize_text(item)])))
+    return normalize_text(str(value or "")).lower()
+
+
+def detect_repo_hydrate_clarifications(repo_root: Path, intake: dict) -> tuple[list[str], list[str]]:
+    """Detect repo-hydrate conflicts between bundle input and existing repository docs."""
+    existing = repo_state_snapshot(repo_root)
+    if not existing:
+        return [], []
+
+    merged = intake.get("merged_snapshot") or {}
+    questions: list[str] = []
+    warnings: list[str] = []
+    for field in ("name", "goal", "stack"):
+        existing_value = existing.get(field)
+        merged_value = merged.get(field)
+        if canonical_field_value(existing_value) and canonical_field_value(merged_value):
+            if canonical_field_value(existing_value) != canonical_field_value(merged_value):
+                questions.append(
+                    f"The existing repository suggests `{field}` is `{existing_value}`, but the source bundle suggests `{merged_value}`. Confirm which should drive hydration."
+                )
+                warnings.append(f"Existing repository state and source bundle differ on `{field}`.")
+    return unique(questions), unique(warnings)
+
+
+def source_reference(intake: dict) -> str:
+    """Return a readable source reference."""
+    roles = intake.get("source_roles") or []
+    if roles:
+        return ", ".join(item["label"] for item in roles)
+    return intake.get("source_path") or "prompt-only input"
 
 
 def choose_task(repo_root: Path, mode: str, intake: dict) -> tuple[str, str]:
@@ -237,8 +282,8 @@ def choose_task(repo_root: Path, mode: str, intake: dict) -> tuple[str, str]:
         title = "Bootstrap initial project scaffold"
     elif mode == "repo-hydrate":
         title = "Align existing repository with collaboration workflow"
-    elif low_confidence(intake):
-        title = "Clarify source plan and recover missing scope"
+    elif needs_clarification(intake):
+        title = "Clarify source bundle and recover missing scope"
     else:
         title = "Clarify initial scope and implementation order"
     return f"{prefix}-{slugify(title)}.md", title
@@ -247,16 +292,18 @@ def choose_task(repo_root: Path, mode: str, intake: dict) -> tuple[str, str]:
 def render_task(repo_root: Path, mode: str, intake: dict) -> tuple[str, str]:
     """Render the first task file."""
     filename, title = choose_task(repo_root, mode, intake)
-    source_ref = intake.get("source_path") or "prompt-only input"
+    source_ref = source_reference(intake)
+    questions = intake.get("clarification_questions") or []
+
     if mode == "greenfield":
         why = "Create the first implementation scaffold from the initial project brief."
         plan = ["Set up the minimal project skeleton.", "Confirm the first user-facing workflow.", "Prepare the next implementation task."]
     elif mode == "repo-hydrate":
         why = "Align the existing repository with the new collaboration layer and identify the next concrete implementation step."
         plan = ["Review the existing code footprint.", "Map current code to project goals.", "Choose the next safe implementation increment."]
-    elif low_confidence(intake):
-        why = "The source plan could not be extracted reliably enough to support implementation."
-        plan = ["Recover the source plan through OCR or user clarification.", "Confirm the actual project scope and goals.", "Only then schedule implementation work."]
+    elif needs_clarification(intake):
+        why = "The source bundle still contains unresolved questions or low-confidence extraction."
+        plan = ["Review the source bundle and conflicts.", "Confirm unresolved project facts with the user.", "Only then schedule implementation work."]
     else:
         why = "Translate the imported project plan into a clear first implementation sequence."
         plan = ["Review the imported plan.", "Confirm the MVP scope and constraints.", "Choose the first implementation milestone."]
@@ -306,10 +353,21 @@ def render_task(repo_root: Path, mode: str, intake: dict) -> tuple[str, str]:
             "## Notes",
             "",
             f"- Facts: initialization mode is `{mode}`",
-            f"- Assumptions: intake confidence is `{intake.get('confidence')}`",
-            f"- Risks: {'source plan is low-confidence' if low_confidence(intake) else 'scope still needs confirmation'}",
+            f"- Facts: source count is `{intake.get('source_count', 0)}`",
+            f"- Assumptions: intake confidence is `{intake.get('bundle_confidence', intake.get('confidence'))}`",
+            f"- Risks: {'unresolved conflicts or low-confidence extraction remain' if needs_clarification(intake) else 'scope still needs confirmation'}",
+        ]
+    )
+    if questions:
+        body.extend(["- Open questions:"] + [f"  - {question}" for question in questions[:5]])
+    body.extend(
+        [
             "",
             "## Execution Log",
+            "",
+            "Record milestone-level progress here. Each entry should summarize one meaningful execution batch, task-status transition, blocker change, or user-directed change of course.",
+            "",
+            "Do not log every file save, every tiny edit, or every formatting-only change.",
             "",
             "- `2026-04-22`: task created during repository initialization",
             "",
@@ -331,8 +389,13 @@ def render_readme(repo_root: Path, mode: str, intake: dict, summary: dict) -> st
     elif mode == "repo-hydrate":
         lines.append("This repository was hydrated with the RepoFrame collaboration layer while preserving existing project material.")
     else:
-        source_name = Path(intake.get("source_path") or "source plan").name
-        lines.append(f"This repository was initialized from `{source_name}` and preserves that source as the authoritative project plan.")
+        if intake.get("source_count", 0) > 1:
+            lines.append(
+                f"This repository was initialized from `{intake.get('source_count')}` source files. The default primary source is `{Path(intake.get('primary_source') or 'source').name}`."
+            )
+        else:
+            source_name = Path(intake.get("source_path") or "source plan").name
+            lines.append(f"This repository was initialized from `{source_name}` and preserves that source as the authoritative project plan.")
     lines.extend(
         [
             "",
@@ -345,13 +408,13 @@ def render_readme(repo_root: Path, mode: str, intake: dict, summary: dict) -> st
             "- `tasks/` contains concrete execution work.",
         ]
     )
-    if low_confidence(intake):
+    if needs_clarification(intake):
         lines.extend(
             [
                 "",
                 "## Caution",
                 "",
-                "The source plan could not be recovered reliably enough for implementation. This workspace is intentionally clarification-first.",
+                "This workspace is currently clarification-first because the source bundle contains unresolved questions or low-confidence extraction.",
             ]
         )
     return "\n".join(lines) + "\n"
@@ -386,28 +449,56 @@ def render_agent(mode: str, intake: dict) -> str:
         "- Keep all updates consistent with the current source confidence.",
         "- Treat low-confidence intake as a clarification problem, not an implementation license.",
         "- Update `STATUS.md` when the next recommended step changes.",
+        "- Update the current task file when task status, execution direction, or blocker state materially changes.",
+        "- Append to the task `Execution Log` only after a meaningful execution batch or milestone.",
         "- Add to `DECISIONS.md` only when a real durable decision exists.",
     ]
     if mode == "repo-hydrate":
-        lines.extend(
-            [
-                "- Respect the existing repository layout and avoid reframing it as a greenfield project.",
-            ]
-        )
-    if low_confidence(intake):
-        lines.extend(
-            [
-                "- Do not infer product scope beyond what the source actually supports.",
-            ]
-        )
+        lines.append("- Respect the existing repository layout and avoid reframing it as a greenfield project.")
+    if needs_clarification(intake):
+        lines.append("- Do not infer product scope beyond what the source bundle actually supports.")
     lines.extend(
         [
+            "",
+            "## Update Rules",
+            "",
+            "Update `STATUS.md` when:",
+            "",
+            "- the active task changes",
+            "- progress reaches a milestone",
+            "- a blocker appears or is removed",
+            "- the next recommended step changes",
+            "",
+            "Update a task file when:",
+            "",
+            "- the task is created",
+            "- acceptance criteria change",
+            "- implementation notes materially affect execution",
+            "- the task status changes",
+            "- a blocker appears or is removed",
+            "- a meaningful batch of related repository changes completes",
+            "",
+            "Update the task `Execution Log` when:",
+            "",
+            "- a milestone is reached",
+            "- a task status changes",
+            "- a blocker appears or is removed",
+            "- a meaningful batch of related repository changes completes",
+            "- a user decision materially changes the execution path",
+            "",
+            "Do not update the task `Execution Log` for:",
+            "",
+            "- every file save",
+            "- every small refactor or formatting-only edit",
+            "- every micro-step inside the same execution batch",
+            "- changes that are already obvious from git history and do not affect execution understanding",
             "",
             "## Anti-Patterns",
             "",
             "- Do not rewrite the source plan unless the user explicitly requests it.",
             "- Do not invent implementation details just to make files look complete.",
             "- Do not use ad hoc temp directories when `.repo-init/` already exists.",
+            "- Do not turn the task `Execution Log` into a file-by-file or save-by-save change ledger.",
             "",
         ]
     )
@@ -416,7 +507,6 @@ def render_agent(mode: str, intake: dict) -> str:
 
 def render_project(repo_root: Path, mode: str, intake: dict, summary: dict) -> str:
     """Render PROJECT.md content."""
-    source_path = intake.get("source_path")
     if mode == "greenfield":
         lines = [
             "# PROJECT.md",
@@ -439,13 +529,14 @@ def render_project(repo_root: Path, mode: str, intake: dict, summary: dict) -> s
         constraints = summary["constraints"] or ["Clarify additional constraints during execution."]
         lines.extend([f"- {item}" for item in constraints])
         if summary["stack"]:
-            lines.extend(["", "## Preferred Stack", ""])
-            lines.extend([f"- {item}" for item in summary["stack"]])
-        lines.extend(["", "## Assumptions", ""])
-        lines.extend([f"- {item}" for item in summary["assumptions"]])
+            lines.extend(["", "## Preferred Stack", ""] + [f"- {item}" for item in summary["stack"]])
+        lines.extend(["", "## Assumptions", ""] + [f"- {item}" for item in summary["assumptions"]])
         return "\n".join(lines) + "\n"
 
-    source_mode = "user-authored" if source_path else "mixed"
+    source_roles = intake.get("source_roles") or []
+    field_sources = intake.get("field_sources") or {}
+    conflicts = intake.get("conflicts") or []
+    questions = intake.get("clarification_questions") or []
     lines = [
         "# Project Compatibility Layer",
         "",
@@ -453,45 +544,53 @@ def render_project(repo_root: Path, mode: str, intake: dict, summary: dict) -> s
         "",
         "## Source Mode",
         "",
-        f"- Source mode: `{source_mode}`",
-        f"- Original source path: `{source_path or 'prompt input'}`",
+        f"- Source mode: `{'user-authored' if intake.get('source_path') else 'mixed'}`",
+        f"- Primary source: `{intake.get('primary_source') or intake.get('source_path') or 'prompt input'}`",
+        f"- Source count: `{intake.get('source_count', 0)}`",
         "- Rewrite policy: preserve the source plan; do not rewrite it by default",
         "",
-        "## Project Snapshot",
+        "## Source Bundle",
         "",
     ]
-    if low_confidence(intake):
-        lines.extend(
-            [
-                "- Project identity: not reliably extractable from the provided source",
-                "- Primary goal: not reliably extractable from the provided source",
-                "- Key constraints:",
-                "  - initialization must remain conservative because extraction confidence is low",
-                "  - the source remains authoritative even though no usable text was extracted",
-                "  - further planning should proceed only after obtaining a readable source or human clarification",
-            ]
-        )
+    if source_roles:
+        lines.extend([f"- `{item['label']}`: role=`{item['role']}`, confidence=`{item['confidence']}`" for item in source_roles])
     else:
-        lines.append(f"- Project name: {summary['name']}")
-        if summary["goal"]:
-            lines.append(f"- Goal: {summary['goal']}")
-        if summary["users"]:
-            lines.append(f"- Target users: {summary['users']}")
-        if summary["stack"]:
-            lines.append(f"- Stack: {', '.join(summary['stack'])}")
-        if summary["constraints"]:
-            lines.append("- Key constraints:")
-            lines.extend([f"  - {item}" for item in summary["constraints"]])
+        lines.append("- prompt-only input")
+
+    lines.extend(["", "## Project Snapshot", ""])
+    snapshot_lines = [
+        ("Project name", "name", summary["name"]),
+        ("Goal", "goal", summary["goal"]),
+        ("Target users", "users", summary["users"]),
+        ("Stage", "stage", summary["stage"]),
+        ("Type", "project_type", summary["project_type"]),
+    ]
+    for label, field_name, value in snapshot_lines:
+        if value:
+            source_label = field_sources.get(field_name, "")
+            source_note = f" (from `{source_label}`)" if source_label else ""
+            lines.append(f"- {label}: {value}{source_note}")
+    if summary["stack"]:
+        stack_note = f" (from `{field_sources['stack']}`)" if field_sources.get("stack") else ""
+        lines.append(f"- Stack: {', '.join(summary['stack'])}{stack_note}")
+    if summary["constraints"]:
+        lines.append("- Key constraints:")
+        lines.extend([f"  - {item}" for item in summary["constraints"]])
+
     lines.extend(["", "## Explicit Assumptions", ""])
-    assumptions = summary["assumptions"] or ["Future work should confirm missing scope details before implementation."]
-    lines.extend([f"- {item}" for item in assumptions])
+    assumptions = unique([*(summary.get("assumptions") or []), *intake.get("adopted_defaults", [])])
+    if assumptions:
+        lines.extend([f"- {item}" for item in assumptions])
+    else:
+        lines.append("- none")
+
     lines.extend(
         [
             "",
             "## Intake Evidence",
             "",
             f"- Detected format: `{intake.get('detected_format')}`",
-            f"- Confidence: `{intake.get('confidence')}`",
+            f"- Bundle confidence: `{intake.get('bundle_confidence', intake.get('confidence'))}`",
             f"- Extracted word count: `{intake.get('word_count')}`",
         ]
     )
@@ -501,6 +600,18 @@ def render_project(repo_root: Path, mode: str, intake: dict, summary: dict) -> s
         lines.extend([f"  - {warning}" for warning in warnings])
     else:
         lines.append("  - none")
+
+    lines.extend(["", "## Conflicts", ""])
+    if conflicts:
+        lines.extend([f"- `{item['field']}`: chose `{item['chosen_from']}` over `{item['discarded_from']}`" for item in conflicts])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Open Questions", ""])
+    if questions:
+        lines.extend([f"- {question}" for question in questions])
+    else:
+        lines.append("- none")
     return "\n".join(lines) + "\n"
 
 
@@ -514,17 +625,17 @@ def render_status(mode: str, intake: dict, summary: dict, task_filename: str) ->
         objective = "align the existing repository with the collaboration workflow"
         next_step = "review the current codebase and choose the next safe implementation increment"
         state = "collaboration layer added to an existing repository"
-    elif low_confidence(intake):
-        objective = "clarify the source plan before any implementation work"
-        next_step = "recover the plan through OCR, a better source file, or direct user clarification"
-        state = "initialized from a low-confidence source plan"
+    elif needs_clarification(intake):
+        objective = "clarify the source bundle before any implementation work"
+        next_step = "resolve the current open questions or confirm the default authority ordering"
+        state = "initialized from a source bundle that still needs clarification"
     else:
         objective = "translate the imported source plan into the first implementation step"
         next_step = "confirm MVP scope and implementation order"
         state = "collaboration layer created from an imported project plan"
 
-    blockers = "the source plan produced no usable text" if low_confidence(intake) else "none"
-    risks = "any inferred scope would be speculative" if low_confidence(intake) else "scope details still need confirmation"
+    blockers = "unresolved source-bundle questions remain" if needs_clarification(intake) else "none"
+    risks = "any inferred scope may still be speculative" if needs_clarification(intake) else "scope details still need confirmation"
     lines = [
         "# STATUS.md",
         "",
@@ -537,7 +648,7 @@ def render_status(mode: str, intake: dict, summary: dict, task_filename: str) ->
         "",
         "## Current State",
         "",
-        "- Status: `in progress`",
+        f"- Status: `{'blocked' if needs_clarification(intake) else 'in progress'}`",
         f"- Summary: {state}",
         "",
         "## Next Step",
@@ -595,7 +706,7 @@ def append_if_missing(path: Path, section_title: str, section_body: str) -> None
 
 def apply_outputs(repo_root: Path, intake: dict, mode: str, policy_json: dict) -> dict[str, list[str]]:
     """Write repository outputs according to the computed policy."""
-    summary = infer_greenfield_fields(intake, repo_root) if mode == "greenfield" else infer_plan_snapshot(intake, repo_root)
+    summary = merged_summary(intake, repo_root, mode)
     filename, task_content = render_task(repo_root, mode, intake)
     task_path = repo_root / "tasks" / filename
     tasks_dir_preexisted = task_path.parent.exists()
@@ -679,17 +790,29 @@ def main() -> int:
     """Run end-to-end repository initialization."""
     args = parse_args()
     try:
+        if not args.prompt and not args.prompt_file and not args.source:
+            raise ValueError("Provide at least one of --prompt, --prompt-file, or --source.")
+
         repo_root = Path(args.repo).resolve()
         repo_root.mkdir(parents=True, exist_ok=True)
         artifacts_dir = select_artifacts_dir(repo_root, args.artifacts_dir)
         artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        raw, intake = collect_source_inputs(args, repo_root, artifacts_dir)
-        write_json(raw, str(artifacts_dir / "raw-intake.json"))
-        write_json(intake, str(artifacts_dir / "intake.json"))
+        prompt_text = load_prompt(args)
+        raw_bundle = build_source_bundle(repo_root, artifacts_dir, prompt_text, args.source, args.primary_source)
 
         repo_summary = summarize_repo(repo_root)
-        mode, reasons = choose_mode(intake, repo_summary)
+        mode, reasons = choose_mode(raw_bundle, repo_summary)
+
+        intake = dict(raw_bundle)
+        if mode == "repo-hydrate":
+            questions, hydrate_warnings = detect_repo_hydrate_clarifications(repo_root, intake)
+            intake["clarification_questions"] = unique([*(intake.get("clarification_questions") or []), *questions])
+            intake["warnings"] = unique([*(intake.get("warnings") or []), *hydrate_warnings])
+
+        write_json(raw_bundle, str(artifacts_dir / "raw-intake.json"))
+        write_json(intake, str(artifacts_dir / "intake.json"))
+
         mode_json = {
             "mode": mode,
             "reasons": reasons,
@@ -705,9 +828,21 @@ def main() -> int:
 
         file_changes = apply_outputs(repo_root, intake, mode, policy_json)
         report_path = Path(args.report_path).resolve() if args.report_path else artifacts_dir / "init-report.md"
-        assumptions = []
-        if low_confidence(intake):
-            assumptions.append("Initialization was kept conservative because the source confidence is low.")
+        assumptions = unique(
+            [
+                *(intake.get("merged_snapshot", {}).get("assumptions") or []),
+                *(
+                    ["Initialization was kept conservative because the source bundle confidence is low."]
+                    if low_confidence(intake)
+                    else []
+                ),
+                *(
+                    ["Initialization continued with unresolved clarification questions recorded in the workspace."]
+                    if intake.get("clarification_questions")
+                    else []
+                ),
+            ]
+        )
         report_text = render_markdown(intake, mode_json, policy_json, assumptions, [])
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(report_text, encoding="utf-8")
@@ -717,6 +852,9 @@ def main() -> int:
             "repo": str(repo_root),
             "artifacts_dir": str(artifacts_dir),
             "report_path": str(report_path),
+            "source_count": intake.get("source_count", 0),
+            "primary_source": intake.get("primary_source"),
+            "clarification_questions": intake.get("clarification_questions", []),
             "file_changes": file_changes,
         }
         print(json.dumps(result, indent=2, ensure_ascii=False))

@@ -27,12 +27,12 @@ Do:
 
 Use when:
 
-- the user provides an authoritative project plan file
+- the user provides one or more authoritative project plan files
 - the plan should remain the source of truth
 
 Do:
 
-- preserve the original project source
+- preserve the original project source bundle
 - extract a concise agent-readable snapshot
 - create or supplement `PROJECT.md` as a compatibility layer
 - create `STATUS.md`
@@ -70,7 +70,7 @@ Prefer preservation over generation when signals conflict.
 ## Standard output flow
 
 1. Discover sources.
-2. Run intake extraction and normalization.
+2. Run intake extraction, normalization, and bundle merging.
 3. Classify the initialization mode.
 4. Compute per-file write policy.
 5. Produce or update `PROJECT.md`.
@@ -87,3 +87,9 @@ When the input is incomplete or extraction confidence is low:
 - create the smallest safe collaboration layer
 - record assumptions explicitly
 - create a clarification task instead of fabricating project facts
+
+When multiple sources disagree on key fields:
+
+- keep the current chosen value explicit
+- record the conflict rather than flattening it away
+- surface clarification questions when the disagreement materially affects initialization

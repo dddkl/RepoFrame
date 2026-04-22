@@ -42,7 +42,7 @@ When this repository is initialized from a single prompt, the agent must:
 
 If the user prompt is incomplete, the agent should make reasonable assumptions and mark them explicitly in `PROJECT.md` or the task file.
 
-The detailed mode selection and write policy are defined in `INIT_EXECUTOR_SPEC.md`.
+If the repository is initialized from an existing project plan, preserve that source by default and use `PROJECT.md` as the agent-readable compatibility layer.
 
 ## Execution Rules
 
@@ -51,8 +51,10 @@ When implementing work:
 1. find or create the relevant task file in `tasks/`
 2. confirm the task aligns with `PROJECT.md`
 3. check `DECISIONS.md` for constraints or prior choices
-4. update `STATUS.md` before or after major milestones
-5. record any important new decision in `DECISIONS.md`
+4. update the current task file when the task status, execution direction, or blocker state materially changes
+5. append to the task `Execution Log` only after a meaningful execution batch or milestone
+6. update `STATUS.md` before or after major milestones
+7. record any important new decision in `DECISIONS.md`
 
 ## Update Rules
 
@@ -84,6 +86,23 @@ Update a task file when:
 - acceptance criteria change
 - implementation notes materially affect execution
 - the task status changes
+- a blocker appears or is removed
+- a meaningful batch of related repository changes completes
+
+Update the task `Execution Log` when:
+
+- a milestone is reached
+- a task status changes
+- a blocker appears or is removed
+- a meaningful batch of related repository changes completes
+- a user decision materially changes the execution path
+
+Do not update the task `Execution Log` for:
+
+- every file save
+- every small refactor or formatting-only edit
+- every micro-step inside the same execution batch
+- changes that are already obvious from git history and do not affect execution understanding
 
 ## Writing Rules
 
@@ -93,6 +112,7 @@ Update a task file when:
 - Keep status short and current.
 - Keep decisions append-only when possible.
 - Use links instead of repeating long explanations.
+- Keep task logs milestone-oriented and batch-oriented rather than change-by-change.
 
 ## Anti-Patterns
 
@@ -103,3 +123,4 @@ Do not:
 - store daily task progress in `PROJECT.md`
 - put detailed execution history in `DECISIONS.md`
 - create ad hoc notes outside `tasks/` for active implementation work without a clear reason
+- turn the task `Execution Log` into a file-by-file or save-by-save change ledger

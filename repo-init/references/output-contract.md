@@ -37,6 +37,7 @@ Include:
 - reading order
 - initialization rules
 - execution and update rules
+- task-log update granularity rules
 - anti-patterns
 
 ### `PROJECT.md`
@@ -49,9 +50,11 @@ Use one of two modes:
 In compatibility mode, include:
 
 - source mode
-- source path
+- source path or primary source
+- source bundle summary when multiple files were used
 - rewrite policy
 - concise project snapshot
+- conflicts and unresolved questions when they exist
 
 ### `STATUS.md`
 
@@ -85,16 +88,37 @@ The first task should usually be:
 
 Do not create a purely empty placeholder as the only task.
 
+Task files should also define an `Execution Log` policy that is milestone-oriented and batch-oriented.
+
+The `Execution Log` should capture:
+
+- task creation
+- task status changes
+- milestone completion
+- blocker appearance or removal
+- meaningful batches of related repository changes
+
+The `Execution Log` should not capture:
+
+- every file save
+- every micro-step
+- formatting-only noise
+- change-by-change duplication of git history
+
 ## Required initialization report fields
 
 The completion report must include:
 
 - selected mode
 - source files used
+- primary source
+- source roles
 - files created
 - files supplemented
 - files preserved
 - assumptions
+- conflicts
+- clarification questions
 - warnings
 
 ## Consistency rule
