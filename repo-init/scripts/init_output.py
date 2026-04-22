@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TypedDict
 
@@ -26,16 +27,25 @@ def write_managed_file(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def append_if_missing(path: Path, section_title: str, section_body: str) -> None:
-    """Append a section to a populated file if it is not already present."""
+def upsert_markdown_section(path: Path, section_title: str, section_body: str) -> None:
+    """Append or replace a top-level markdown section in a populated file."""
     existing = path.read_text(encoding="utf-8", errors="replace")
-    if section_title in existing:
-        return
-    updated = existing.rstrip() + "\n\n" + section_body.strip() + "\n"
-    path.write_text(updated, encoding="utf-8")
+    replacement = section_body.strip() + "\n\n"
+    pattern = rf"(?ms)^{re.escape(section_title)}\n.*?(?=^##\s|\Z)"
+    if re.search(pattern, existing):
+        updated = re.sub(pattern, replacement, existing, count=1)
+    else:
+        updated = existing.rstrip() + "\n\n" + section_body.strip() + "\n"
+    path.write_text(updated.rstrip() + "\n", encoding="utf-8")
 
 
-def apply_outputs(repo_root: Path, policy_json: dict, content_map: dict[str, str], task_plan: TaskPlan) -> FileChanges:
+def apply_outputs(
+    repo_root: Path,
+    policy_json: dict,
+    content_map: dict[str, str],
+    task_plan: TaskPlan,
+    readme_supplement: str,
+) -> FileChanges:
     """Write repository outputs according to the computed policy."""
     tasks_dir = repo_root / "tasks"
     tasks_dir_preexisted = tasks_dir.exists()
@@ -49,6 +59,7 @@ def apply_outputs(repo_root: Path, policy_json: dict, content_map: dict[str, str
         path = repo_root / target
         policy = policy_json["files"][target]["policy"]
         state = policy_json["files"][target]["state"]
+        existing_text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
 
         if target == "PROJECT.md" and policy == "preserve":
             preserved.append(target)
@@ -59,29 +70,13 @@ def apply_outputs(repo_root: Path, policy_json: dict, content_map: dict[str, str
             created.append(target)
             continue
 
-        if target == "README.md":
-            append_if_missing(
-                path,
-                "## Collaboration Layer",
-                "\n".join(
-                    [
-                        "## Collaboration Layer",
-                        "",
-                        "This repository now uses the RepoFrame collaboration files:",
-                        "",
-                        "- `AGENT.md`",
-                        "- `PROJECT.md`",
-                        "- `STATUS.md`",
-                        "- `DECISIONS.md`",
-                        "- `tasks/`",
-                    ]
-                ),
-            )
+        if existing_text and MANAGED_MARKER in existing_text:
+            write_managed_file(path, content_map[target])
             supplemented.append(target)
             continue
 
-        if path.exists() and MANAGED_MARKER in path.read_text(encoding="utf-8", errors="replace"):
-            write_managed_file(path, content_map[target])
+        if target == "README.md":
+            upsert_markdown_section(path, "## Collaboration Layer", readme_supplement)
             supplemented.append(target)
             continue
 

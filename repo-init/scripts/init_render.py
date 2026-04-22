@@ -11,44 +11,113 @@ from init_task_plan import TaskPlan
 from repo_init_common import MANAGED_MARKER, unique
 
 
-def render_readme(repo_root: Path, mode: str, intake: dict[str, Any], summary: dict[str, Any]) -> str:
-    """Render README content."""
-    lines = [
-        f"# {summary['name']}",
-        "",
-        MANAGED_MARKER,
-        "",
+def _ensure_sentence(text: str, fallback: str) -> str:
+    """Return a non-empty sentence with terminal punctuation."""
+    value = (text or "").strip() or fallback
+    if value[-1] not in ".!?":
+        value += "."
+    return value
+
+
+def _source_label(value: str | None) -> str:
+    """Return a readable source label for README output."""
+    if not value:
+        return "prompt-only input"
+    return Path(value).name or value
+
+
+def _source_files_used(intake: dict[str, Any]) -> str:
+    """Return a readable source-file summary for README output."""
+    source_roles = intake.get("source_roles") or []
+    items = [
+        f"`{_source_label(item.get('path') or item.get('label'))}`"
+        for item in source_roles
+        if item.get("path") or item.get("label")
     ]
+    return ", ".join(items) if items else "`prompt-only input`"
+
+
+def _readme_overview(mode: str, intake: dict[str, Any], summary: dict[str, Any]) -> str:
+    """Render the opening README paragraph."""
     if mode == "greenfield":
-        lines.append(summary["goal"] + ".")
-    elif mode == "repo-hydrate":
-        lines.append("This repository was hydrated with the RepoFrame collaboration layer while preserving existing project material.")
-    else:
-        if intake.get("source_count", 0) > 1:
-            lines.append(
-                f"This repository was initialized from `{intake.get('source_count')}` source files. The default primary source is `{Path(intake.get('primary_source') or 'source').name}`."
-            )
-        else:
-            source_name = Path(intake.get("source_path") or "source plan").name
-            lines.append(f"This repository was initialized from `{source_name}` and preserves that source as the authoritative project plan.")
-    lines.extend(
-        [
-            "",
-            "## Collaboration Contract",
-            "",
-            "- `AGENT.md` defines agent operating rules.",
-            "- `PROJECT.md` defines the project or compatibility snapshot.",
-            "- `STATUS.md` tracks current state, latest feedback, task impact, and replan suggestions.",
-            "- `DECISIONS.md` records only durable project decisions.",
-            "- `tasks/` contains concrete execution work, assumption checks, and downstream impact.",
-        ]
+        return _ensure_sentence(summary.get("goal", ""), "Clarify the primary project outcome.")
+    if mode == "repo-hydrate":
+        return "This repository was hydrated with the RepoFrame collaboration layer while preserving existing project material."
+    if intake.get("source_count", 0) > 1:
+        return (
+            f"This repository was initialized from `{intake.get('source_count')}` source files. "
+            f"The default primary source is `{_source_label(intake.get('primary_source'))}`."
+        )
+    return (
+        f"This repository was initialized from `{_source_label(intake.get('source_path'))}` "
+        "and preserves that source as the authoritative project plan."
     )
+
+
+def _repository_purpose(mode: str, summary: dict[str, Any]) -> str:
+    """Render the repository-purpose section."""
+    if mode == "greenfield":
+        return _ensure_sentence(summary.get("goal", ""), "Clarify the primary project outcome.")
+    if mode == "repo-hydrate":
+        goal = _ensure_sentence(
+            summary.get("goal", ""),
+            "Keep the existing repository legible to both humans and agents as work continues",
+        )
+        return goal + " RepoFrame adds explicit project context, status tracking, durable decisions, and task sequencing around the existing codebase."
+    goal = _ensure_sentence(
+        summary.get("goal", ""),
+        "Turn the imported project plan into a collaboration workspace that stays readable during execution",
+    )
+    return goal + " RepoFrame preserves the source plan while making execution state, decisions, and task sequencing explicit."
+
+
+def _initialization_model_lines(mode: str, intake: dict[str, Any]) -> list[str]:
+    """Render initialization-model bullets for README output."""
+    lines = [
+        f"- Mode: `{mode}`",
+        "- Posture: `preserve-first` by default",
+        f"- Primary source: `{_source_label(intake.get('primary_source') or intake.get('source_path'))}`",
+        f"- Source files used: {_source_files_used(intake)}",
+    ]
+    if needs_clarification(intake):
+        lines.append("- Current confidence: clarification-first until unresolved questions are answered")
+    else:
+        lines.append("- Current confidence: sufficient to create the collaboration layer and starting task set")
+    return lines
+
+
+def _build_readme_contract_sections(mode: str, intake: dict[str, Any], summary: dict[str, Any], heading: str) -> list[str]:
+    """Render the README contract sections with a configurable heading level."""
+    lines = [
+        f"{heading} Repository Purpose",
+        "",
+        _repository_purpose(mode, summary),
+        "",
+        f"{heading} Initialization Model",
+        "",
+        *_initialization_model_lines(mode, intake),
+        "",
+        f"{heading} Collaboration Contract",
+        "",
+        "- `AGENT.md` defines agent operating rules and update discipline.",
+        "- `PROJECT.md` defines the project or compatibility snapshot.",
+        "- `STATUS.md` tracks current state, latest feedback, task impact, and replan suggestions.",
+        "- `DECISIONS.md` records only durable project decisions.",
+        "- `tasks/` contains concrete execution work, assumption checks, and downstream impact.",
+        "",
+        f"{heading} Detailed Rules",
+        "",
+        "- `AGENT.md` is the operational source of truth for execution and update rules.",
+        "- `PROJECT.md` explains project scope, constraints, and compatibility assumptions.",
+        "- `STATUS.md` and `tasks/` show the active work surface and next recommended step.",
+        "- `.repo-init/init-report.md` records initialization evidence, source handling, and planned file actions.",
+    ]
     task_decomposition = intake.get("task_decomposition") or {}
     if task_decomposition.get("applied"):
         lines.extend(
             [
                 "",
-                "## Task Decomposition",
+                f"{heading} Task Decomposition",
                 "",
                 "This workspace was classified as complex during initialization, so RepoFrame generated a coordinating master task and first-wave child tasks.",
                 f"The recommended starting child task is `{task_decomposition.get('recommended_start_task')}`.",
@@ -58,11 +127,37 @@ def render_readme(repo_root: Path, mode: str, intake: dict[str, Any], summary: d
         lines.extend(
             [
                 "",
-                "## Caution",
+                f"{heading} Caution",
                 "",
                 "This workspace is currently clarification-first because the source bundle contains unresolved questions or low-confidence extraction.",
             ]
         )
+    return lines
+
+
+def render_readme(repo_root: Path, mode: str, intake: dict[str, Any], summary: dict[str, Any]) -> str:
+    """Render README content."""
+    lines = [
+        f"# {summary['name']}",
+        "",
+        MANAGED_MARKER,
+        "",
+        _readme_overview(mode, intake, summary),
+        "",
+    ]
+    lines.extend(_build_readme_contract_sections(mode, intake, summary, "##"))
+    return "\n".join(lines) + "\n"
+
+
+def render_readme_supplement(mode: str, intake: dict[str, Any], summary: dict[str, Any]) -> str:
+    """Render the README supplement for populated non-managed README files."""
+    lines = [
+        "## Collaboration Layer",
+        "",
+        "RepoFrame added a collaboration layer to this repository so project context, current state, decisions, and task sequencing stay visible without replacing the existing README.",
+        "",
+        *_build_readme_contract_sections(mode, intake, summary, "###"),
+    ]
     return "\n".join(lines) + "\n"
 
 

@@ -30,6 +30,7 @@ def render_markdown(intake: dict, mode_json: dict, policy_json: dict, assumption
     warnings = [*intake.get("warnings", []), *extra_warnings]
     source_path = intake.get("source_path") or "prompt-only input"
     source_roles = intake.get("source_roles") or []
+    source_files_used = [item["path"] for item in source_roles if item.get("path")] or [source_path]
     conflicts = intake.get("conflicts") or []
     clarification_questions = intake.get("clarification_questions") or []
     adopted_defaults = intake.get("adopted_defaults") or []
@@ -39,21 +40,25 @@ def render_markdown(intake: dict, mode_json: dict, policy_json: dict, assumption
     lines = [
         "# Initialization Report",
         "",
-        f"- Mode: `{mode_json['mode']}`",
+        f"- Selected mode: `{mode_json['mode']}`",
+        f"- Source files used: {', '.join(f'`{item}`' for item in source_files_used)}",
         f"- Primary source: `{intake.get('primary_source') or source_path}`",
         f"- Source count: `{intake.get('source_count', 0)}`",
         f"- Title: `{intake.get('title') or 'Untitled project input'}`",
         f"- Bundle confidence: `{intake.get('bundle_confidence', intake.get('confidence'))}`",
         "",
-        "## Sources",
+        "## Source Roles",
         "",
     ]
     if source_roles:
         lines.extend(
-            [f"- `{item['label']}`: role=`{item['role']}`, confidence=`{item['confidence']}`" for item in source_roles]
+            [
+                f"- `{item['label']}`: path=`{item.get('path') or item['label']}`, role=`{item['role']}`, confidence=`{item['confidence']}`"
+                for item in source_roles
+            ]
         )
     else:
-        lines.append(f"- `{source_path}`")
+        lines.append("- none")
 
     lines.extend(["", "## Complexity Assessment", ""])
     lines.append(f"- Level: `{complexity.get('level', 'simple')}`")

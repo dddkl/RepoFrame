@@ -48,6 +48,11 @@ def assert_artifacts_exist(repo_path: Path) -> None:
             raise AssertionError(f"Missing artifact: {path}")
 
 
+def assert_report_contract(path: Path) -> None:
+    """Assert that the initialization report exposes required source metadata."""
+    assert_contains(path, ["- Source files used:", "## Source Roles"])
+
+
 def validate_greenfield(base_dir: Path) -> None:
     """Validate prompt-only initialization."""
     repo_path = base_dir / "greenfield"
@@ -60,7 +65,12 @@ def validate_greenfield(base_dir: Path) -> None:
     if result["mode"] != "greenfield":
         raise AssertionError(f"Expected greenfield mode, got {result['mode']}")
     assert_artifacts_exist(repo_path)
+    assert_contains(
+        repo_path / "README.md",
+        ["## Repository Purpose", "## Initialization Model", "## Collaboration Contract", "## Detailed Rules"],
+    )
     assert_contains(repo_path / "STATUS.md", ["## Latest Feedback", "## Task Impact", "## Recommended Replan"])
+    assert_report_contract(repo_path / ".repo-init" / "init-report.md")
     task_path = repo_path / "tasks" / result["task_decomposition"]["recommended_start_task"]
     assert_contains(task_path, ["## Assumption Checks", "## Downstream Impact"])
 
@@ -75,7 +85,12 @@ def validate_plan_ingest_clarification(base_dir: Path) -> None:
     if result["mode"] != "plan-ingest":
         raise AssertionError(f"Expected plan-ingest mode, got {result['mode']}")
     assert_artifacts_exist(repo_path)
+    assert_contains(
+        repo_path / "README.md",
+        ["## Repository Purpose", "## Initialization Model", "## Collaboration Contract", "## Detailed Rules"],
+    )
     assert_contains(repo_path / "STATUS.md", ["## Latest Feedback", "## Task Impact", "## Recommended Replan"])
+    assert_report_contract(repo_path / ".repo-init" / "init-report.md")
     task_path = repo_path / "tasks" / result["task_decomposition"]["recommended_start_task"]
     assert_contains(task_path, ["## Assumption Checks", "## Downstream Impact"])
 
@@ -98,7 +113,12 @@ def validate_repo_hydrate_complex(base_dir: Path) -> None:
     if not result["task_decomposition"]["applied"]:
         raise AssertionError("Expected task decomposition for complex repo-hydrate smoke test.")
     assert_artifacts_exist(repo_path)
+    assert_contains(
+        repo_path / "README.md",
+        ["## Collaboration Layer", "### Repository Purpose", "### Initialization Model", "### Detailed Rules"],
+    )
     assert_contains(repo_path / "STATUS.md", ["## Latest Feedback", "## Task Impact", "## Recommended Replan"])
+    assert_report_contract(repo_path / ".repo-init" / "init-report.md")
     master_task = repo_path / "tasks" / result["task_decomposition"]["master_task"]
     child_task = repo_path / "tasks" / result["task_decomposition"]["recommended_start_task"]
     assert_contains(master_task, ["## Replan Triggers", "## Feedback Ledger", "## Replan Decisions"])

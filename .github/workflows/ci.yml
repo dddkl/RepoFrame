@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pypdf python-docx
+
+      - name: Compile Python scripts
+        run: |
+          python - <<'PY'
+          import py_compile
+          from pathlib import Path
+
+          root = Path("repo-init/scripts")
+          for path in sorted(root.glob("*.py")):
+              py_compile.compile(str(path), doraise=True)
+          print("py_compile passed")
+          PY
+
+      - name: Run smoke validation
+        run: python repo-init/scripts/smoke_initialize_repo.py

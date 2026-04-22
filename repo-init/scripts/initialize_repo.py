@@ -12,7 +12,7 @@ from pathlib import Path
 from build_source_bundle import build_source_bundle
 from classify_init_mode import choose_mode
 from init_output import apply_outputs
-from init_render import render_agent, render_decisions, render_project, render_readme, render_status
+from init_render import render_agent, render_decisions, render_project, render_readme, render_readme_supplement, render_status
 from init_summary import detect_repo_hydrate_clarifications, low_confidence, merged_summary
 from init_task_plan import assess_complexity, render_task_set
 from plan_write_policy import build_write_policy
@@ -118,7 +118,13 @@ def main() -> int:
             "STATUS.md": render_status(mode, intake, summary, task_plan),
             "DECISIONS.md": render_decisions(),
         }
-        file_changes = apply_outputs(repo_root, policy_json, content_map, task_plan)
+        file_changes = apply_outputs(
+            repo_root,
+            policy_json,
+            content_map,
+            task_plan,
+            render_readme_supplement(mode, intake, summary),
+        )
 
         report_path = Path(args.report_path).resolve() if args.report_path else artifacts_dir / "init-report.md"
         assumptions = unique(
