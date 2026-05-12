@@ -11,7 +11,7 @@ from init_task_plan import TaskPlan
 from repo_init_common import MANAGED_MARKER, unique
 
 
-TARGET_FILES = ("README.md", "AGENT.md", "PROJECT.md", "STATUS.md", "DECISIONS.md")
+TARGET_FILES = ("README.md", "AGENT.md", "PROJECT.md", "STATUS.md", "DECISIONS.md", "REUSE.md")
 
 
 class FileChanges(TypedDict):

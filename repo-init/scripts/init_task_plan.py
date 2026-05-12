@@ -221,6 +221,19 @@ def build_task_document(
         body.extend(["", f"## {section_title}", ""])
         body.extend(lines or ["- none"])
 
+    body.extend(
+        [
+            "",
+            "## Open Source Reuse Check",
+            "",
+            "- Required: `yes when this task introduces a reusable technical capability; otherwise no`",
+            "- Search keywords: `record planned searches before implementation`",
+            "- Candidate projects: `record links or none found`",
+            "- Decision: `Direct Use | Adapt | Learn From | Build In-House | not required yet`",
+            "- Reason: `explain the reuse decision before implementation starts`",
+        ]
+    )
+
     body.extend(["", "## Notes", ""])
     body.append(f"- Facts: {'; '.join(facts) if facts else 'none'}")
     body.append(f"- Assumptions: {'; '.join(assumptions) if assumptions else 'none'}")

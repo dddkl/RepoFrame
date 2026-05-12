@@ -16,6 +16,7 @@ TARGETS = {
     "PROJECT.md": "PROJECT.md",
     "STATUS.md": "STATUS.md",
     "DECISIONS.md": "DECISIONS.md",
+    "REUSE.md": "REUSE.md",
 }
 
 

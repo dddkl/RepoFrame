@@ -19,6 +19,7 @@ Use when:
 Do:
 
 - generate `PROJECT.md`
+- create `REUSE.md`
 - create `STATUS.md`
 - create the first task file
 - add a foundational decision only when it is explicit or unavoidable
@@ -35,6 +36,7 @@ Do:
 - preserve the original project source bundle
 - extract a concise agent-readable snapshot
 - create or supplement `PROJECT.md` as a compatibility layer
+- create or update `REUSE.md`
 - create `STATUS.md`
 - create the first task file
 
@@ -49,6 +51,7 @@ Do:
 
 - inspect the existing repository
 - create only missing collaboration files
+- create or update `REUSE.md`
 - supplement live status and task tracking
 - avoid replacing established project documents
 
@@ -78,9 +81,10 @@ Prefer preservation over generation when signals conflict.
 7. Produce or update `PROJECT.md`.
 8. Produce or update `STATUS.md`.
 9. Produce or update `DECISIONS.md` if a real initialization decision exists.
-10. Create the first actionable task or task set.
-11. Emit an initialization report.
-12. Stop after initialization and wait for explicit user direction before any implementation work.
+10. Produce or update `REUSE.md`.
+11. Create the first actionable task or task set.
+12. Emit an initialization report.
+13. Stop after initialization and wait for explicit user direction before any implementation work.
 
 The existence of a `Next Step` in `STATUS.md` or a concrete first task does not authorize the initializer to execute that work in the same turn.
 
@@ -114,6 +118,7 @@ The generated collaboration layer must preserve room for execution feedback and 
 
 - `STATUS.md` should reserve `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
 - Task files should reserve `Assumption Checks` and `Downstream Impact`.
+- Task files should reserve `Open Source Reuse Check` so reusable technical capabilities are evaluated before implementation.
 - For decomposed work, child-task feedback should flow into the coordinating master task's `Feedback Ledger`.
 - `Replan Decisions` should contain only explicitly accepted downstream adjustments.
 - Agent suggestions may recommend `keep`, `reorder`, `block`, `split`, `revise-acceptance`, or `clarify`, but should not directly rewrite untouched task status or acceptance criteria until the change is explicitly accepted.

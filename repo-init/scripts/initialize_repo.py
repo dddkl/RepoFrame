@@ -12,7 +12,15 @@ from pathlib import Path
 from build_source_bundle import build_source_bundle
 from classify_init_mode import choose_mode
 from init_output import apply_outputs
-from init_render import render_agent, render_decisions, render_project, render_readme, render_readme_supplement, render_status
+from init_render import (
+    render_agent,
+    render_decisions,
+    render_project,
+    render_readme,
+    render_readme_supplement,
+    render_reuse,
+    render_status,
+)
 from init_summary import detect_repo_hydrate_clarifications, low_confidence, merged_summary
 from init_task_plan import assess_complexity, render_task_set
 from plan_write_policy import build_write_policy
@@ -117,6 +125,7 @@ def main() -> int:
             "PROJECT.md": render_project(repo_root, mode, intake, summary),
             "STATUS.md": render_status(mode, intake, summary, task_plan),
             "DECISIONS.md": render_decisions(),
+            "REUSE.md": render_reuse(),
         }
         file_changes = apply_outputs(
             repo_root,

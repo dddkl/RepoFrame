@@ -33,7 +33,7 @@ RepoFrame is not based on a platform-only trick. The underlying method can be ap
 If you want to apply the method manually, this short prompt is enough to get close to the same collaboration shape:
 
 ```text
-Use the files in template/ as the target collaboration structure. Read the project context I provide and initialize a collaboration layer around it. Preserve any user-authored project plan by default. Create or update README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/.
+Use the files in template/ as the target collaboration structure. Read the project context I provide and initialize a collaboration layer around it. Preserve any user-authored project plan by default. Create or update README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, REUSE.md, and tasks/.
 
 Rules:
 - Separate initialization from execution. Stop after creating the collaboration layer.
@@ -105,6 +105,7 @@ If a document contains critical information that only appears in images, do not 
 - `PROJECT.md` for the project definition or compatibility layer around an existing plan
 - `STATUS.md` for current focus, latest feedback, task impact, and the recommended next step
 - `DECISIONS.md` for durable accepted decisions
+- `REUSE.md` for the open-source reuse gate before technical planning
 - `tasks/` with actionable task files
 - `.repo-init/` with normalized intake artifacts and the initialization report
 

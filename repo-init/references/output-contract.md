@@ -11,6 +11,7 @@ Create or update these targets:
 - `PROJECT.md`
 - `STATUS.md`
 - `DECISIONS.md`
+- `REUSE.md`
 - `tasks/` with at least one real task file
 - `.repo-init/` with normalized intake and initialization report artifacts unless cleanup is explicitly requested
 
@@ -41,6 +42,7 @@ Include:
 - reading order
 - initialization rules
 - execution and update rules
+- open-source reuse rules
 - task-log update granularity rules
 - anti-patterns
 
@@ -84,6 +86,19 @@ Append only when initialization reveals a real project decision.
 Do not invent decisions just to populate the file.
 Do not store temporary feedback notes or unaccepted replan suggestions here.
 
+### `REUSE.md`
+
+Keep it operational and decision-oriented.
+
+Include:
+
+- when open-source reuse checks are required
+- where agents should search
+- evaluation criteria for candidate projects
+- allowed reuse decisions: `Direct Use`, `Adapt`, `Learn From`, or `Build In-House`
+- the required task-file output format for reuse checks
+- the rule that build-in-house decisions must explain why existing candidates were rejected
+
 ### `tasks/`
 
 Always create actionable task output.
@@ -111,6 +126,7 @@ Task files must include:
 
 - `Assumption Checks` with `Validated`, `Invalidated`, and `Still Open`
 - `Downstream Impact` with `Affected Tasks` and `Suggested Follow-up`
+- `Open Source Reuse Check` with requirement status, search keywords, candidate projects, decision, and reason
 
 Task files should also define an `Execution Log` policy that is milestone-oriented and batch-oriented.
 

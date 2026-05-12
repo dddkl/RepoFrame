@@ -1,6 +1,6 @@
 ---
 name: repo-init
-description: Initialize repositories from a natural-language prompt or one or more existing project-plan files, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/, while preserving user-authored project plans by default.
+description: Initialize repositories from a natural-language prompt or one or more existing project-plan files, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, REUSE.md, and tasks/, while preserving user-authored project plans by default.
 ---
 
 # Repo Init Skill
@@ -15,7 +15,7 @@ Use the deterministic single-entry workflow in `scripts/initialize_repo.py` inst
 
 - Initialize a new repository from a single prompt.
 - Import one or more existing project-plan files into the RepoFrame collaboration template.
-- Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, and `tasks/` to an existing repository.
+- Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, `REUSE.md`, and `tasks/` to an existing repository.
 - Normalize plan intake from `.md`, `.txt`, `.docx`, `.pdf`, `.html`, or prompt-only input before deciding what to write.
 - Accept multiple source files and treat the first one as authoritative by default when the user does not explicitly name a primary source.
 - Automatically decompose complex projects into a coordinating master task plus child tasks while keeping simple projects on a single-task path.

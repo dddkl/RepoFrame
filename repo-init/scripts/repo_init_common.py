@@ -79,6 +79,7 @@ TARGET_DOCS = (
     "PROJECT.md",
     "STATUS.md",
     "DECISIONS.md",
+    "REUSE.md",
 )
 
 PLACEHOLDER_RE = re.compile(r"<[^>\n]{1,80}>")

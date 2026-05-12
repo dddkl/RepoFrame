@@ -36,6 +36,14 @@ Describe why this task exists and how it connects to `PROJECT.md`.
 2. `<step-2>`
 3. `<step-3>`
 
+## Open Source Reuse Check
+
+- Required: `<yes | no>`
+- Search keywords: `<keywords or none>`
+- Candidate projects: `<links or none yet>`
+- Decision: `<Direct Use | Adapt | Learn From | Build In-House | not required yet>`
+- Reason: `<why this decision fits the task>`
+
 ## Notes
 
 - Facts: `<verified information>`

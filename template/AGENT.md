@@ -15,6 +15,7 @@ Each file has a single responsibility:
 - `PROJECT.md`: project facts, goals, scope, and constraints
 - `STATUS.md`: current state, latest feedback, task impact, recommended replan, next step, blockers, and risks
 - `DECISIONS.md`: durable accepted decisions and rationale
+- `REUSE.md`: open-source reuse gate for technical planning
 - `tasks/*.md`: individual task definitions and execution records
 
 Agents must not duplicate the same content across multiple files unless a short cross-reference is necessary.
@@ -26,8 +27,9 @@ Before starting substantial work, read in this order:
 1. `PROJECT.md`
 2. `STATUS.md`
 3. `DECISIONS.md`
-4. the coordinating task in `tasks/` when one exists
-5. the relevant child task in `tasks/`
+4. `REUSE.md` when proposing a technical approach or implementation plan
+5. the coordinating task in `tasks/` when one exists
+6. the relevant child task in `tasks/`
 
 Read `README.md` only when onboarding or when validating entry-point documentation.
 
@@ -40,7 +42,8 @@ When this repository is initialized from a single prompt, the agent must:
 3. create or update `STATUS.md` with the starting state
 4. create the first task file in `tasks/`
 5. add any important foundational choice to `DECISIONS.md`
-6. stop after initialization unless the user explicitly asks to continue into implementation
+6. create or update `REUSE.md`
+7. stop after initialization unless the user explicitly asks to continue into implementation
 
 If the user prompt is incomplete, the agent should make reasonable assumptions and mark them explicitly in `PROJECT.md` or the task file.
 
@@ -57,11 +60,22 @@ When implementing work:
 1. find or create the relevant task file in `tasks/`
 2. confirm the task aligns with `PROJECT.md`
 3. check `DECISIONS.md` for constraints or prior choices
-4. update the current task file's `Assumption Checks` and `Downstream Impact` when a milestone, blocker change, acceptance change, invalidated assumption, or user-directed change materially affects execution
-5. append to the task `Execution Log` only after a meaningful execution batch or milestone
-6. if the feedback affects unfinished work, update the coordinating task `Feedback Ledger` and `STATUS.md` `Latest Feedback`, `Task Impact`, and `Recommended Replan`
-7. update `STATUS.md` before or after major milestones
-8. record any important accepted durable decision in `DECISIONS.md`
+4. check `REUSE.md` before proposing a technical approach for reusable or non-trivial capabilities
+5. update the current task file's `Assumption Checks` and `Downstream Impact` when a milestone, blocker change, acceptance change, invalidated assumption, or user-directed change materially affects execution
+6. append to the task `Execution Log` only after a meaningful execution batch or milestone
+7. if the feedback affects unfinished work, update the coordinating task `Feedback Ledger` and `STATUS.md` `Latest Feedback`, `Task Impact`, and `Recommended Replan`
+8. update `STATUS.md` before or after major milestones
+9. record any important accepted durable decision in `DECISIONS.md`
+
+## Open-Source Reuse Rules
+
+Before designing or implementing a reusable technical capability, follow `REUSE.md`.
+
+Run the reuse check for complex features, framework or library choices, third-party integrations, infrastructure, auth, payments, search, AI, analytics, queues, scheduling, observability, editors, charts, workflow engines, or work likely to take more than half a day from scratch.
+
+Record candidates, risks, and the final reuse decision in the relevant task file before implementation starts.
+
+Do not choose `Build In-House` until maintained, license-compatible candidates have been considered and rejected for concrete reasons.
 
 ## Update Rules
 
@@ -85,6 +99,7 @@ Update `STATUS.md` when:
 Update `DECISIONS.md` when:
 
 - a non-trivial technical choice is accepted
+- an open-source reuse, adaptation, or build-in-house decision becomes durable
 - a replan decision is explicitly accepted and should become durable
 - an option is rejected for a concrete reason
 - a previous decision is reversed
