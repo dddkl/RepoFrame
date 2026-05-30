@@ -4,7 +4,8 @@ This file is the operational snapshot for the current working state.
 
 ## Current Focus
 
-- Active task: `<task-id or none>`
+- Active goal: `<goals/GOAL-###-slug.md or none>`
+- Active task: `<tasks/TASK-###-slug.md or none>`
 - Objective: `<what is being worked on now>`
 
 ## Current State
@@ -18,11 +19,11 @@ This file is the operational snapshot for the current working state.
 
 ## Task Impact
 
-- `<task-id or none>`: `<keep | reorder | block | split | revise-acceptance | clarify>` because `<impact summary>`
+- `<task-id or none>`: `<keep | reorder | block | split | supersede | revise-acceptance | clarify>` because `<impact summary>`
 
 ## Recommended Replan
 
-- `Suggested only:` `<recommended downstream adjustment or none>`
+- `<recommended downstream adjustment or none; task replans may be autonomous when they preserve the active goal>`
 
 ## Next Step
 

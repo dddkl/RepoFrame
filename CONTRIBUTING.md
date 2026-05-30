@@ -69,6 +69,6 @@ Good pull requests usually include:
 - a clear summary of the behavior change
 - the exact validation commands you ran
 - contract/template updates when generated output changed
-- notes on compatibility risk if the change touches mode selection, write policy, or task decomposition
+- notes on compatibility risk if the change touches mode selection, write policy, or adaptive goal/task planning
 
 If a change is intentionally behavior-changing, call that out explicitly in the PR description.

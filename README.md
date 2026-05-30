@@ -14,7 +14,7 @@ Most bootstrap tools are good at creating a starting structure. RepoFrame is aim
 - preserving user-authored plans by default instead of rewriting them unless asked
 - separating initialization from execution so a suggested next step is not treated as implicit permission to continue
 - keeping feedback, downstream task impact, and replan suggestions explicit in the generated workspace
-- decomposing complex projects into a coordinating master task plus child tasks when a single task would be too coarse
+- creating a few stable milestone goals plus adaptive planned tasks, so tasks can change without losing sight of the next meaningful outcome
 
 If you have worked with agents on larger repositories, the failure mode is usually not "nothing was created". It is silent assumption drift, unclear next steps, and humans having to reconstruct context from scratch. RepoFrame is built to reduce that.
 
@@ -28,19 +28,23 @@ In normal use, you do not need to run the bundled scripts manually. The CLI is t
 
 Yes, the core idea is usable even without Codex.
 
-RepoFrame is not based on a platform-only trick. The underlying method can be applied with a capable LLM, one good prompt, and the files in [`template/`](./template). What `repo-init` adds on top is the deterministic execution path, input normalization, mode selection, preservation policy, and task decomposition rules.
+RepoFrame is not based on a platform-only trick. The underlying method can be applied with a capable LLM, one good prompt, and the files in [`template/`](./template). What `repo-init` adds on top is the deterministic execution path, input normalization, mode selection, preservation policy, and adaptive goal/task planning rules.
 
 If you want to apply the method manually, this short prompt is enough to get close to the same collaboration shape:
 
 ```text
-Use the files in template/ as the target collaboration structure. Read the project context I provide and initialize a collaboration layer around it. Preserve any user-authored project plan by default. Create or update README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/.
+Use the files in template/ as the target collaboration structure. Read the project context I provide and initialize a collaboration layer around it. Preserve any user-authored project plan by default. Create or update README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, goals/, tasks/, and .agent/.
 
 Rules:
 - Separate initialization from execution. Stop after creating the collaboration layer.
-- If the project is simple, create one actionable first task.
-- If the project is complex, create one coordinating master task and 3-7 child tasks.
+- Always create one active goal under goals/.
+- For larger projects, create a few milestone goals rather than a deep goal hierarchy.
+- Put machine-checkable milestone acceptance in acceptance.json and validate it with the acceptance linter.
+- Create as many evidence-backed planned tasks as help human-agent collaboration; do not enforce a fixed task-count cap.
+- Treat tasks as provisional routes toward the goal that may be rewritten as execution observations arrive.
 - Keep latest feedback, task impact, blockers, risks, and the recommended next step visible in STATUS.md.
 - Put durable accepted decisions in DECISIONS.md, not temporary notes.
+- Require explicit human confirmation before changing the goal, hard constraints, durable project scope, accepted success criteria, or collaboration contract.
 - If key facts are missing or conflicting, ask clarification questions or produce the smallest safe collaboration layer and record the uncertainty.
 ```
 
@@ -101,24 +105,39 @@ If a document contains critical information that only appears in images, do not 
 `repo-init` bootstraps or hydrates a repository with:
 
 - `README.md` for the human-facing repository entry point
-- `AGENT.md` for the operational collaboration contract
+- `AGENT.md` as the thin operational index
+- `.agent/` for detailed collaboration rules
 - `PROJECT.md` for the project definition or compatibility layer around an existing plan
+- `goals/` with milestone goal files for outcomes, observations, planned tasks, and replan history
+- `acceptance.json` with machine-checkable milestone acceptance criteria
 - `STATUS.md` for current focus, latest feedback, task impact, and the recommended next step
 - `DECISIONS.md` for durable accepted decisions
-- `tasks/` with actionable task files
+- `tasks/` with provisional planned task files
 - `.repo-init/` with normalized intake artifacts and the initialization report
 
-The task model is intentionally explicit:
+The goal/task model is intentionally explicit:
 
-- simple projects get one actionable first task
-- complex projects get one coordinating master task plus a first wave of child tasks
+- every initialization gets at least one active milestone goal
+- simple projects get one planned starting task
+- complex projects get a few milestone goals, usually 2-4
+- complex projects get adaptive planned tasks with no fixed minimum or maximum count
 - clarification-first cases get a clarification task rather than speculative implementation tasks
+- agents may rewrite planned tasks when observations show a better route to the active goal
 
 The feedback loop is explicit as well:
 
 - task-local findings live in each task's `Assumption Checks`, `Downstream Impact`, and `Execution Log`
-- cross-task effects flow back to the master task's `Feedback Ledger` on complex projects
+- cross-task effects flow back to the active goal's `Observation Ledger` and `Replan History`
+- machine-checkable acceptance lives in `acceptance.json` and can be linted with `repo-init/scripts/lint_acceptance.py`
 - `STATUS.md` keeps the latest high-signal feedback and recommended replan visible at the repo level
+
+Acceptance checks can be validated with:
+
+```bash
+python repo-init/scripts/lint_acceptance.py --repo .
+```
+
+The linter supports static checks by default. Command checks require explicit opt-in with `--allow-command-checks`.
 
 ## Install
 

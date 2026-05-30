@@ -24,7 +24,7 @@ Call out any of these if relevant:
 
 - initialization mode selection
 - generated document contract
-- task decomposition
+- adaptive goal/task planning
 - runtime / dependency behavior
 - validation or contributor tooling
 

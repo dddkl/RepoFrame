@@ -35,6 +35,7 @@ def render_markdown(intake: dict, mode_json: dict, policy_json: dict, assumption
     clarification_questions = intake.get("clarification_questions") or []
     adopted_defaults = intake.get("adopted_defaults") or []
     complexity = intake.get("complexity_assessment") or {}
+    adaptive_task_planning = intake.get("adaptive_task_planning") or {}
     task_decomposition = intake.get("task_decomposition") or {}
 
     lines = [
@@ -64,14 +65,19 @@ def render_markdown(intake: dict, mode_json: dict, policy_json: dict, assumption
     lines.append(f"- Level: `{complexity.get('level', 'simple')}`")
     lines.append(f"- Score: `{complexity.get('score', 0)}`")
     lines.append(f"- Signals: {', '.join(complexity.get('signals') or ['none'])}")
-    lines.append(f"- Task decomposition applied: `{task_decomposition.get('applied', False)}`")
-    lines.append(f"- Decomposition reason: {task_decomposition.get('reason', 'none')}")
+    lines.append(f"- Adaptive task planning applied: `{adaptive_task_planning.get('applied', False)}`")
+    lines.append(f"- Multi-task planning: `{adaptive_task_planning.get('multi_task', task_decomposition.get('applied', False))}`")
+    lines.append(f"- Planning reason: {adaptive_task_planning.get('reason', task_decomposition.get('reason', 'none'))}")
 
-    lines.extend(["", "## Task Decomposition", ""])
-    lines.append(f"- Master task: `{task_decomposition.get('master_task') or 'none'}`")
-    child_tasks = task_decomposition.get("child_tasks") or []
-    lines.append(f"- Child tasks: {', '.join(f'`{item}`' for item in child_tasks) or 'none'}")
-    lines.append(f"- Recommended start task: `{task_decomposition.get('recommended_start_task') or 'none'}`")
+    planned_tasks = adaptive_task_planning.get("planned_tasks") or task_decomposition.get("planned_tasks") or task_decomposition.get("child_tasks") or []
+    lines.extend(["", "## Adaptive Task Planning", ""])
+    lines.append(f"- Goal file: `{adaptive_task_planning.get('goal_file') or task_decomposition.get('goal_file') or 'none'}`")
+    milestone_goals = adaptive_task_planning.get("milestone_goals") or task_decomposition.get("milestone_goals") or []
+    lines.append(f"- Milestone goals: {', '.join(f'`{item}`' for item in milestone_goals) or 'none'}")
+    lines.append(f"- Planned tasks: {', '.join(f'`{item}`' for item in planned_tasks) or 'none'}")
+    lines.append(f"- Task count: `{adaptive_task_planning.get('task_count', len(planned_tasks))}`")
+    lines.append(f"- Acceptance file: `{adaptive_task_planning.get('acceptance_file') or 'acceptance.json'}`")
+    lines.append(f"- Recommended start task: `{adaptive_task_planning.get('recommended_start_task') or task_decomposition.get('recommended_start_task') or 'none'}`")
 
     lines.extend(
         [
@@ -147,10 +153,19 @@ def main() -> int:
                 "primary_source": intake.get("primary_source"),
                 "source_roles": intake.get("source_roles", []),
                 "complexity_assessment": intake.get("complexity_assessment", {}),
+                "adaptive_task_planning": intake.get("adaptive_task_planning", {}),
                 "task_decomposition": intake.get("task_decomposition", {}),
+                "goal_file": (intake.get("adaptive_task_planning") or {}).get("goal_file")
+                or (intake.get("task_decomposition") or {}).get("goal_file"),
+                "milestone_goals": (intake.get("adaptive_task_planning") or {}).get("milestone_goals", [])
+                or (intake.get("task_decomposition") or {}).get("milestone_goals", []),
+                "planned_tasks": (intake.get("adaptive_task_planning") or {}).get("planned_tasks", [])
+                or (intake.get("task_decomposition") or {}).get("planned_tasks", []),
+                "acceptance_file": (intake.get("adaptive_task_planning") or {}).get("acceptance_file", "acceptance.json"),
+                "recommended_start_task": (intake.get("adaptive_task_planning") or {}).get("recommended_start_task")
+                or (intake.get("task_decomposition") or {}).get("recommended_start_task"),
                 "master_task": (intake.get("task_decomposition") or {}).get("master_task"),
                 "child_tasks": (intake.get("task_decomposition") or {}).get("child_tasks", []),
-                "recommended_start_task": (intake.get("task_decomposition") or {}).get("recommended_start_task"),
                 "files_created": grouped["create"],
                 "files_supplemented": grouped["supplement"],
                 "files_preserved": grouped["preserve"],

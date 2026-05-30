@@ -1,6 +1,6 @@
 ---
 name: repo-init
-description: Initialize repositories from a natural-language prompt or one or more existing project-plan files, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, and tasks/, while preserving user-authored project plans by default.
+description: Initialize repositories from a natural-language prompt or one or more existing project-plan files, including Markdown, text, DOCX, PDF, and HTML inputs. Use when Codex needs to bootstrap or hydrate a repo with README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, goals/, tasks/, and .agent/, while preserving user-authored project plans by default.
 ---
 
 # Repo Init Skill
@@ -15,10 +15,10 @@ Use the deterministic single-entry workflow in `scripts/initialize_repo.py` inst
 
 - Initialize a new repository from a single prompt.
 - Import one or more existing project-plan files into the RepoFrame collaboration template.
-- Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, and `tasks/` to an existing repository.
+- Add `README.md`, `AGENT.md`, `PROJECT.md`, `STATUS.md`, `DECISIONS.md`, `goals/`, `tasks/`, and `.agent/` to an existing repository.
 - Normalize plan intake from `.md`, `.txt`, `.docx`, `.pdf`, `.html`, or prompt-only input before deciding what to write.
 - Accept multiple source files and treat the first one as authoritative by default when the user does not explicitly name a primary source.
-- Automatically decompose complex projects into a coordinating master task plus child tasks while keeping simple projects on a single-task path.
+- Create a milestone-goal adaptive plan: a few milestone goals for larger projects plus as many evidence-backed planned tasks as help human-agent collaboration.
 
 ## Skill path
 
@@ -107,15 +107,15 @@ Review:
 - `.repo-init/init-report.md`
 
 6. Stop after initialization unless the user explicitly asks to continue.
-Initialization is complete once the collaboration files, first task, and initialization report exist.
+Initialization is complete once the collaboration files, milestone goals, `acceptance.json`, planned tasks, and initialization report exist.
 
 Default completion behavior:
 - summarize what was created or preserved
-- point the user to `STATUS.md`, the master task or first task, and `.repo-init/init-report.md`
+- point the user to `STATUS.md`, the active milestone goal, `acceptance.json`, the recommended starting task, and `.repo-init/init-report.md`
 - stop and wait for the next instruction
 
 Do not:
-- start implementing the first task automatically
+- start implementing the recommended starting task automatically
 - create extra scaffolding beyond the initialization contract unless the user explicitly asked for it
 - treat the suggested `Next Step` in `STATUS.md` as permission to execute it in the same turn
 
@@ -139,12 +139,16 @@ The low-level scripts remain available when you need to inspect one stage in iso
 - Separate extraction from interpretation; do not infer initialization mode inside the extraction step.
 - Prefer the smallest safe collaboration state when intake confidence is low.
 - Create a clarification task instead of inventing missing project facts.
-- For complex projects, create one coordinating master task plus first-wave child tasks instead of a single oversized first task.
-- Keep `STATUS.md` pointed at the master task until a child task is explicitly chosen for execution.
+- Always create at least one milestone goal under `goals/`.
+- For complex projects, create a few milestone goals rather than a deep goal hierarchy.
+- Create `acceptance.json` for machine-checkable milestone acceptance.
+- For complex projects, create as many evidence-backed planned tasks as help collaboration; do not impose a fixed task-count cap.
+- Keep `STATUS.md` pointed at the active goal and `none` for active task until a task is explicitly started.
 - When a task hits a milestone, blocker change, acceptance change, invalidated assumption, or user-directed change, update that task's `Assumption Checks` and `Downstream Impact` before closing the execution batch.
-- When task-local feedback affects unfinished work, update the coordinating master task `Feedback Ledger` plus `STATUS.md` `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
-- For single-task work, let `STATUS.md` carry the current feedback and replan suggestion without inventing a coordinating task.
-- Treat `Recommended Replan` as suggestion space; do not rewrite untouched task status or acceptance criteria from a single unconfirmed feedback cycle.
+- When task-local feedback affects unfinished work, update the active goal `Observation Ledger` plus `STATUS.md` `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
+- Treat planned tasks as provisional; rewrite, split, reorder, or supersede them when observations show a better route to the active goal.
+- Do not change the goal, hard constraints, durable project scope, accepted success criteria, or collaboration contract without explicit human confirmation.
+- Do not delete or weaken `acceptance.json` checks without explicit human confirmation.
 - Record only durable accepted adjustments in `DECISIONS.md`; keep temporary feedback and replan suggestions out of it.
 - Keep all writes inside the explicit `--repo` target and that repository's `.repo-init/` artifact directory.
 - Treat initialization as complete when the collaboration layer and initialization report have been written.
@@ -168,9 +172,11 @@ The low-level scripts remain available when you need to inspect one stage in iso
 - `scripts/classify_init_mode.py`: classify `greenfield`, `plan-ingest`, or `repo-hydrate`
 - `scripts/plan_write_policy.py`: compute per-file write actions
 - `scripts/render_init_report.py`: produce a standard initialization report
+- `scripts/lint_acceptance.py`: lint `acceptance.json` machine-checkable milestone criteria
 
 ## Validation
 
 - Run `quick_validate.py` after editing the skill folder.
 - Smoke-test prompt-only, file-ingest, multi-file ingest, conflict, and hydrate flows with the bundled scripts.
+- Run `lint_acceptance.py --repo <initialized-repo>` when validating generated milestone acceptance output.
 - If file extraction is weak, preserve the source and generate warnings rather than forcing a rewrite.

@@ -27,6 +27,6 @@ Call out anything that touches:
 
 - mode selection
 - write policy
-- task decomposition
+- adaptive goal/task planning
 - artifact compatibility
 - runtime / dependency assumptions

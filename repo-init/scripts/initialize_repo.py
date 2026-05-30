@@ -12,7 +12,16 @@ from pathlib import Path
 from build_source_bundle import build_source_bundle
 from classify_init_mode import choose_mode
 from init_output import apply_outputs
-from init_render import render_agent, render_decisions, render_project, render_readme, render_readme_supplement, render_status
+from init_render import (
+    render_agent,
+    render_agent_docs,
+    render_acceptance,
+    render_decisions,
+    render_project,
+    render_readme,
+    render_readme_supplement,
+    render_status,
+)
 from init_summary import detect_repo_hydrate_clarifications, low_confidence, merged_summary
 from init_task_plan import assess_complexity, render_task_set
 from plan_write_policy import build_write_policy
@@ -82,9 +91,13 @@ def main() -> int:
                     if question != "The project goal is still unclear. Confirm the primary outcome before implementation proceeds."
                 ]
 
-        complexity_assessment, task_decomposition = assess_complexity(mode, intake, repo_summary)
+        complexity_assessment, adaptive_task_planning = assess_complexity(mode, intake, repo_summary)
         intake["complexity_assessment"] = complexity_assessment
-        intake["task_decomposition"] = task_decomposition
+        intake["adaptive_task_planning"] = adaptive_task_planning
+        intake["task_decomposition"] = {
+            "applied": adaptive_task_planning.get("multi_task", False),
+            "reason": adaptive_task_planning.get("reason"),
+        }
 
         write_json(raw_bundle, str(artifacts_dir / "raw-intake.json"))
 
@@ -103,11 +116,26 @@ def main() -> int:
 
         summary = merged_summary(intake, repo_root, mode)
         task_plan = render_task_set(repo_root, mode, intake, repo_summary, summary)
+        intake["adaptive_task_planning"] = {
+            **adaptive_task_planning,
+            "goal_file": task_plan["goal_file"],
+            "milestone_goals": task_plan["milestone_goals"],
+            "active_goal": task_plan["active_goal"],
+            "active_task": task_plan["active_task"],
+            "planned_tasks": task_plan["planned_tasks"],
+            "acceptance_file": task_plan["acceptance_file"],
+            "recommended_start_task": task_plan["recommended_start_task"],
+            "task_count": len(task_plan["planned_tasks"]),
+        }
         intake["task_decomposition"] = {
-            **task_decomposition,
+            "applied": task_plan["decomposition_applied"],
+            "reason": adaptive_task_planning.get("reason"),
             "master_task": task_plan["master_task"],
             "child_tasks": task_plan["child_tasks"],
             "recommended_start_task": task_plan["recommended_start_task"],
+            "goal_file": task_plan["goal_file"],
+            "milestone_goals": task_plan["milestone_goals"],
+            "planned_tasks": task_plan["planned_tasks"],
         }
         write_json(intake, str(artifacts_dir / "intake.json"))
 
@@ -124,6 +152,8 @@ def main() -> int:
             content_map,
             task_plan,
             render_readme_supplement(mode, intake, summary),
+            render_agent_docs(),
+            render_acceptance(task_plan),
         )
 
         report_path = Path(args.report_path).resolve() if args.report_path else artifacts_dir / "init-report.md"
@@ -155,7 +185,15 @@ def main() -> int:
             "primary_source": intake.get("primary_source"),
             "clarification_questions": intake.get("clarification_questions", []),
             "complexity_assessment": intake.get("complexity_assessment", {}),
+            "adaptive_task_planning": intake.get("adaptive_task_planning", {}),
             "task_decomposition": intake.get("task_decomposition", {}),
+            "goal_file": task_plan["goal_file"],
+            "milestone_goals": task_plan["milestone_goals"],
+            "active_goal": task_plan["active_goal"],
+            "active_task": task_plan["active_task"],
+            "planned_tasks": task_plan["planned_tasks"],
+            "acceptance_file": task_plan["acceptance_file"],
+            "recommended_start_task": task_plan["recommended_start_task"],
             "file_changes": file_changes,
         }
         print(json.dumps(result, indent=2, ensure_ascii=False))

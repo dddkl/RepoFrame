@@ -3,14 +3,15 @@
 ## Metadata
 
 - ID: `TASK-000`
-- Status: `<todo | in progress | blocked | review | done>`
+- Status: `<planned | in progress | blocked | review | done | superseded>`
 - Owner: `<human | agent | shared>`
+- Goal: `<goals/GOAL-###-slug.md>`
 - Created: `<YYYY-MM-DD>`
 - Updated: `<YYYY-MM-DD>`
 
 ## Why
 
-Describe why this task exists and how it connects to `PROJECT.md`.
+Describe why this provisional task exists and how it advances the active goal.
 
 ## Scope
 
@@ -58,7 +59,7 @@ Describe why this task exists and how it connects to `PROJECT.md`.
 
 ## Downstream Impact
 
-Record cross-task impact here whenever current execution changes ordering, blockers, acceptance, or clarification needs.
+Record downstream task impact here whenever current execution changes ordering, blockers, acceptance, or clarification needs.
 
 If an `Execution Log` entry changes downstream work, reflect that here as well.
 
@@ -72,8 +73,8 @@ If an `Execution Log` entry changes downstream work, reflect that here as well.
 
 ## Execution Log
 
-Record milestone-level progress here. Each entry should summarize one meaningful execution batch, task-status transition, blocker change, or user-directed change of course.
+Record milestone-level progress here. Each entry should summarize one meaningful execution batch, task-status transition, blocker change, replan, or user-directed change of course.
 
 Do not log every file save, every tiny edit, or every formatting-only change.
 
-- `<YYYY-MM-DD>`: task created
+- `<YYYY-MM-DD>`: task planned

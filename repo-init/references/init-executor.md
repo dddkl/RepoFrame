@@ -20,7 +20,9 @@ Do:
 
 - generate `PROJECT.md`
 - create `STATUS.md`
-- create the first task file
+- create milestone goal file(s)
+- create `acceptance.json`
+- create the initial planned task file
 - add a foundational decision only when it is explicit or unavoidable
 
 ### `plan-ingest`
@@ -36,7 +38,9 @@ Do:
 - extract a concise agent-readable snapshot
 - create or supplement `PROJECT.md` as a compatibility layer
 - create `STATUS.md`
-- create the first task file
+- create milestone goal file(s)
+- create `acceptance.json`
+- create the initial planned task file
 
 ### `repo-hydrate`
 
@@ -49,7 +53,7 @@ Do:
 
 - inspect the existing repository
 - create only missing collaboration files
-- supplement live status and task tracking
+- supplement live goal, status, and task tracking
 - avoid replacing established project documents
 
 ## Mode-selection order
@@ -74,15 +78,15 @@ Prefer preservation over generation when signals conflict.
 3. Classify the initialization mode.
 4. Compute per-file write policy.
 5. Assess repository complexity from intake plus repository summary.
-6. Choose between a single first task or a decomposed task set.
+6. Create a milestone-goal adaptive plan with no fixed task-count cap.
 7. Produce or update `PROJECT.md`.
 8. Produce or update `STATUS.md`.
 9. Produce or update `DECISIONS.md` if a real initialization decision exists.
-10. Create the first actionable task or task set.
+10. Create milestone goals, `acceptance.json`, and planned tasks.
 11. Emit an initialization report.
 12. Stop after initialization and wait for explicit user direction before any implementation work.
 
-The existence of a `Next Step` in `STATUS.md` or a concrete first task does not authorize the initializer to execute that work in the same turn.
+The existence of a `Next Step` in `STATUS.md` or a planned task does not authorize the initializer to execute that work in the same turn.
 
 ## Failure handling
 
@@ -94,13 +98,14 @@ When the input is incomplete or extraction confidence is low:
 - create a clarification task instead of fabricating project facts
 - stop after writing the safe initialization state
 
-When the project is complex enough for decomposition:
+When the project is complex enough for multiple planned tasks:
 
-- automatically create one coordinating master task
-- automatically create `3-7` child tasks for the first wave of work
-- keep `STATUS.md` pointed at the master task
-- keep the recommended child task explicit without marking it started
-- stop after initialization; do not execute any child task
+- automatically create a few milestone goal files, usually 2-4
+- automatically create as many evidence-backed planned tasks as help human-agent collaboration
+- do not impose a fixed minimum or maximum planned-task count
+- keep `STATUS.md` pointed at the first active milestone goal and no active task
+- keep the recommended starting task explicit without marking it started
+- stop after initialization; do not execute any planned task
 
 When multiple sources disagree on key fields:
 
@@ -113,8 +118,11 @@ When multiple sources disagree on key fields:
 The generated collaboration layer must preserve room for execution feedback and downstream task adjustment:
 
 - `STATUS.md` should reserve `Latest Feedback`, `Task Impact`, and `Recommended Replan`.
+- Goal files should reserve `Observation Ledger` and `Replan History`.
+- `acceptance.json` should reserve machine-checkable milestone acceptance checks.
 - Task files should reserve `Assumption Checks` and `Downstream Impact`.
-- For decomposed work, child-task feedback should flow into the coordinating master task's `Feedback Ledger`.
-- `Replan Decisions` should contain only explicitly accepted downstream adjustments.
-- Agent suggestions may recommend `keep`, `reorder`, `block`, `split`, `revise-acceptance`, or `clarify`, but should not directly rewrite untouched task status or acceptance criteria until the change is explicitly accepted.
+- Task-local feedback should flow into the active goal's `Observation Ledger` when it affects future work.
+- Task replans may recommend or apply `keep`, `reorder`, `block`, `split`, `supersede`, `revise-acceptance`, or `clarify` when they preserve the active goal.
+- Goal, hard-constraint, durable-scope, accepted-success-criteria, and collaboration-contract changes require explicit human confirmation.
+- Deleting or weakening `acceptance.json` checks requires explicit human confirmation.
 - `DECISIONS.md` should store only durable accepted outcomes, not temporary feedback or unaccepted suggestions.

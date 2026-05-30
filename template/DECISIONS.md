@@ -4,7 +4,7 @@ This file stores durable project decisions and their rationale.
 
 Use short append-only records. Each decision should be stable enough that a future contributor or agent can rely on it.
 
-Do not use this file for temporary feedback notes or unaccepted replan suggestions. Keep those in `STATUS.md` or the coordinating task instead.
+Do not use this file for temporary feedback notes or unaccepted replan suggestions. Keep those in `STATUS.md`, the active goal, or the current task instead.
 
 ## Decision Template
 

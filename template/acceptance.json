@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "managed_by": "RepoFrame",
+  "active_goal": "GOAL-000",
+  "active_goal_file": "goals/GOAL-000-template.md",
+  "linter": "repo-init/scripts/lint_acceptance.py",
+  "goals": [
+    {
+      "id": "GOAL-000",
+      "file": "goals/GOAL-000-template.md",
+      "status": "active",
+      "checks": [
+        {
+          "id": "goal-file-exists",
+          "type": "files_exist",
+          "paths": [
+            "goals/GOAL-000-template.md"
+          ]
+        },
+        {
+          "id": "goal-headings",
+          "type": "markdown_headings",
+          "paths": [
+            "goals/GOAL-000-template.md"
+          ],
+          "headings": [
+            "Final Outcome",
+            "Human Acceptance",
+            "Machine Acceptance",
+            "Observation Ledger",
+            "Replan History"
+          ]
+        }
+      ]
+    }
+  ]
+}

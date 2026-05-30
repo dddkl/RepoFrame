@@ -79,6 +79,7 @@ TARGET_DOCS = (
     "PROJECT.md",
     "STATUS.md",
     "DECISIONS.md",
+    "acceptance.json",
 )
 
 PLACEHOLDER_RE = re.compile(r"<[^>\n]{1,80}>")
@@ -194,7 +195,7 @@ def summarize_repo(repo_root: Path) -> dict[str, Any]:
     doc_files = [
         rel
         for rel in relative_files
-        if rel in TARGET_DOCS or rel.startswith("tasks/")
+        if rel in TARGET_DOCS or rel.startswith("goals/") or rel.startswith("tasks/") or rel.startswith(".agent/")
     ]
     return {
         "meaningful_file_count": len(relative_files),
