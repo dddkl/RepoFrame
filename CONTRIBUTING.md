@@ -49,7 +49,7 @@ python repo-init/scripts/doctor.py --format pdf --format docx
 If you change document contracts or generated templates:
 
 - update the matching references in `repo-init/references/`
-- update the sample files in `template/`
+- update generated-output assertions in `repo-init/scripts/smoke_initialize_repo.py` when needed
 - confirm the generated output still matches the documented contract
 
 ## Change Expectations

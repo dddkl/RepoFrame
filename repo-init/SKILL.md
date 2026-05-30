@@ -176,7 +176,7 @@ The low-level scripts remain available when you need to inspect one stage in iso
 
 ## Validation
 
-- Run `quick_validate.py` after editing the skill folder.
+- Run `scripts/smoke_initialize_repo.py` after editing the skill folder.
 - Smoke-test prompt-only, file-ingest, multi-file ingest, conflict, and hydrate flows with the bundled scripts.
 - Run `lint_acceptance.py --repo <initialized-repo>` when validating generated milestone acceptance output.
 - If file extraction is weak, preserve the source and generate warnings rather than forcing a rewrite.

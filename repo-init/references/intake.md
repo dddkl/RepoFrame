@@ -89,7 +89,7 @@ Low-confidence intake should push the executor toward preservation and clarifica
 When intermediate artifacts are persisted, prefer:
 
 ```text
-.repoframe/intake/
+.repo-init/
 ```
 
 Useful artifacts:
@@ -98,11 +98,5 @@ Useful artifacts:
 - normalized intake JSON
 - multi-source bundle JSON
 - extracted text snapshots
-
-For the installable skill, the preferred repository-local artifact root is:
-
-```text
-.repo-init/
-```
 
 Storing artifacts is optional only when cleanup is explicitly requested. Otherwise keep the path stable and predictable.

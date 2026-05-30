@@ -1,149 +1,73 @@
 # RepoFrame
 
-RepoFrame is the source repository for `repo-init`, an installable Codex skill that turns a prompt or an existing project plan into a stable human and agent collaboration workspace.
+RepoFrame is the source repository for `repo-init`, an installable Codex skill that initializes a repository with a small, explicit collaboration layer for humans and agents.
 
-It was inspired by agile development and refined through our own experience with longer-running agent work. The problem it tries to solve is not just "how do we generate project files", but "how do we keep an agent from drifting, keep feedback visible, and let a human rejoin the work without losing the thread".
+The goal is not to scaffold application code. The goal is to make project state durable: current objective, accepted constraints, planned tasks, machine-checkable acceptance, and handoff context.
 
-## Why This Exists
+## Use It
 
-Most bootstrap tools are good at creating a starting structure. RepoFrame is aimed at the layer after that: making the repo legible enough for sustained human-agent collaboration.
-
-`repo-init` does that by:
-
-- generating a visible collaboration layer instead of only scaffolding code
-- preserving user-authored plans by default instead of rewriting them unless asked
-- separating initialization from execution so a suggested next step is not treated as implicit permission to continue
-- keeping feedback, downstream task impact, and replan suggestions explicit in the generated workspace
-- creating a few stable milestone goals plus adaptive planned tasks, so tasks can change without losing sight of the next meaningful outcome
-
-If you have worked with agents on larger repositories, the failure mode is usually not "nothing was created". It is silent assumption drift, unclear next steps, and humans having to reconstruct context from scratch. RepoFrame is built to reduce that.
-
-## Recommended Usage
-
-Use `$repo-init` directly in Codex. That is the primary interface.
-
-In normal use, you do not need to run the bundled scripts manually. The CLI is the deterministic backend and a debugging fallback when you want to validate behavior outside the usual skill flow.
-
-## Using The Method Without Codex
-
-Yes, the core idea is usable even without Codex.
-
-RepoFrame is not based on a platform-only trick. The underlying method can be applied with a capable LLM, one good prompt, and the files in [`template/`](./template). What `repo-init` adds on top is the deterministic execution path, input normalization, mode selection, preservation policy, and adaptive goal/task planning rules.
-
-If you want to apply the method manually, this short prompt is enough to get close to the same collaboration shape:
-
-```text
-Use the files in template/ as the target collaboration structure. Read the project context I provide and initialize a collaboration layer around it. Preserve any user-authored project plan by default. Create or update README.md, AGENT.md, PROJECT.md, STATUS.md, DECISIONS.md, goals/, tasks/, and .agent/.
-
-Rules:
-- Separate initialization from execution. Stop after creating the collaboration layer.
-- Always create one active goal under goals/.
-- For larger projects, create a few milestone goals rather than a deep goal hierarchy.
-- Put machine-checkable milestone acceptance in acceptance.json and validate it with the acceptance linter.
-- Create as many evidence-backed planned tasks as help human-agent collaboration; do not enforce a fixed task-count cap.
-- Treat tasks as provisional routes toward the goal that may be rewritten as execution observations arrive.
-- Keep latest feedback, task impact, blockers, risks, and the recommended next step visible in STATUS.md.
-- Put durable accepted decisions in DECISIONS.md, not temporary notes.
-- Require explicit human confirmation before changing the goal, hard constraints, durable project scope, accepted success criteria, or collaboration contract.
-- If key facts are missing or conflicting, ask clarification questions or produce the smallest safe collaboration layer and record the uncertainty.
-```
-
-That manual path can reproduce much of the thinking. The difference is that `repo-init` makes the process more repeatable, less fragile, and easier to audit across repositories.
-
-### Greenfield
+Use `$repo-init` in Codex. That is the primary interface.
 
 ```text
 Use $repo-init to initialize this repository: build a TypeScript CLI called ReleasePilot for small release teams. The goal is to automate changelog preparation. Use Node.js, TypeScript, and Vitest. Do not build a web UI in the first phase.
 ```
 
-### Plan Ingest
-
-```text
-Use $repo-init to initialize this repository from D:\plans\project-plan.docx. Preserve the original plan by default and create the collaboration layer around it.
-```
-
-### Multi-Source Plan Ingest
+You can initialize from plan files:
 
 ```text
 Use $repo-init to initialize this repository from docs/vision.md and docs/requirements.md. Use docs/vision.md as the primary source.
 ```
 
-### Repo Hydrate
+You can also hydrate an existing repository:
 
 ```text
 Use $repo-init to add the collaboration layer to this existing repository without treating it as a greenfield project.
 ```
 
-## Initialization Model
+## What It Produces
 
-RepoFrame supports three practical entry paths:
+`repo-init` creates or supplements:
 
-- `greenfield`: start from a prompt
-- `plan-ingest`: initialize from one or more existing plan files
-- `repo-hydrate`: add the collaboration layer to an existing repository
+- `README.md`
+- `AGENT.md`
+- `PROJECT.md`
+- `STATUS.md`
+- `DECISIONS.md`
+- `.agent/` detailed collaboration rules
+- `goals/` milestone goal files
+- `tasks/` planned task files
+- `acceptance.json` machine-checkable milestone acceptance
+- `.repo-init/` normalized intake artifacts and `init-report.md`
 
-Across all three modes, the default posture is preserve-first. If the repository already contains project material, `repo-init` tries to build around it rather than overwrite it.
+Every initialization gets one active milestone goal and at least one planned task. Larger projects get a few milestone goals and as many evidence-backed tasks as help collaboration. Initialization stops after writing the collaboration layer; it does not execute the recommended next task.
 
-When intake is incomplete or conflicting, the initializer stays conservative. It records unresolved questions and produces the smallest safe collaboration layer instead of pretending it knows more than it does.
+## Modes
 
-## Input Recommendation And Current Limitation
+`repo-init` selects one of three modes:
 
-`repo-init` supports `.md`, `.txt`, `.docx`, `.pdf`, and `.html`, but `Markdown` is still the recommended source format.
+- `greenfield`: start from a prompt in an empty or near-empty repository
+- `plan-ingest`: initialize from one or more authoritative project-plan files
+- `repo-hydrate`: add collaboration files around an existing codebase or project
 
-This is a current limitation worth stating directly: the skill is built around deterministic, text-first intake. If important requirements only exist inside screenshots, scanned pages, embedded images, or diagram pictures, the initializer becomes less reliable and less auditable.
+The default posture is preserve-first. Existing project plans and user-authored repository files are preserved unless the user explicitly asks for a rewrite.
 
-So even though non-Markdown files are supported, the safer path is:
+## Input Support
 
-- prefer `Markdown` whenever you can
-- rewrite key requirements from image-heavy documents into text before initialization
-- use text-based diagrams such as `Mermaid` for flows, states, and architecture whenever possible
+Supported project-plan inputs:
 
-If a document contains critical information that only appears in images, do not assume the skill will interpret that material as well as plain text. In those cases, converting the important parts into Markdown usually gives better results than relying on the original file format alone.
+- `.md`
+- `.txt`
+- `.docx`
+- `.pdf`
+- `.html`
 
-## What The Skill Produces
-
-`repo-init` bootstraps or hydrates a repository with:
-
-- `README.md` for the human-facing repository entry point
-- `AGENT.md` as the thin operational index
-- `.agent/` for detailed collaboration rules
-- `PROJECT.md` for the project definition or compatibility layer around an existing plan
-- `goals/` with milestone goal files for outcomes, observations, planned tasks, and replan history
-- `acceptance.json` with machine-checkable milestone acceptance criteria
-- `STATUS.md` for current focus, latest feedback, task impact, and the recommended next step
-- `DECISIONS.md` for durable accepted decisions
-- `tasks/` with provisional planned task files
-- `.repo-init/` with normalized intake artifacts and the initialization report
-
-The goal/task model is intentionally explicit:
-
-- every initialization gets at least one active milestone goal
-- simple projects get one planned starting task
-- complex projects get a few milestone goals, usually 2-4
-- complex projects get adaptive planned tasks with no fixed minimum or maximum count
-- clarification-first cases get a clarification task rather than speculative implementation tasks
-- agents may rewrite planned tasks when observations show a better route to the active goal
-
-The feedback loop is explicit as well:
-
-- task-local findings live in each task's `Assumption Checks`, `Downstream Impact`, and `Execution Log`
-- cross-task effects flow back to the active goal's `Observation Ledger` and `Replan History`
-- machine-checkable acceptance lives in `acceptance.json` and can be linted with `repo-init/scripts/lint_acceptance.py`
-- `STATUS.md` keeps the latest high-signal feedback and recommended replan visible at the repo level
-
-Acceptance checks can be validated with:
-
-```bash
-python repo-init/scripts/lint_acceptance.py --repo .
-```
-
-The linter supports static checks by default. Command checks require explicit opt-in with `--allow-command-checks`.
+Markdown remains the recommended source format. The pipeline is deterministic and text-first; screenshots, scanned pages, embedded images, and diagram-only requirements are less reliable than plain text or Mermaid-style diagrams.
 
 ## Install
 
-Copy [`repo-init/`](./repo-init) into `$CODEX_HOME/skills/repo-init`.
+Copy `repo-init/` into `$CODEX_HOME/skills/repo-init`.
 
-Windows example:
+Windows:
 
 ```powershell
 Copy-Item -LiteralPath .\repo-init -Destination "$env:CODEX_HOME\skills\repo-init" -Recurse -Force
@@ -153,31 +77,23 @@ Copy-Item -LiteralPath .\repo-init -Destination "$env:CODEX_HOME\skills\repo-ini
 
 Use Python `3.10+`.
 
-If Codex bundled workspace Python is available, prefer that runtime. Otherwise install the required packages into your local Python environment:
+Install file-ingest dependencies when needed:
 
 ```bash
 python -m pip install pypdf python-docx
 ```
 
-Before file-ingest workflows, run the preflight check:
+Run the preflight check for fresh environments or file-ingest workflows:
 
 ```bash
 python "$CODEX_HOME/skills/repo-init/scripts/doctor.py"
 ```
 
-Detailed runtime notes live in [`repo-init/references/runtime.md`](./repo-init/references/runtime.md).
+## CLI Fallback
 
-## Debug And CLI Fallback
+The deterministic backend is available for debugging and non-Codex use.
 
-The bundled CLI is the skill's deterministic execution path. Use it when you are debugging, validating behavior, or running outside the normal Codex skill flow.
-
-Run the preflight:
-
-```bash
-python "$CODEX_HOME/skills/repo-init/scripts/doctor.py" --format pdf --format docx
-```
-
-Run initialization directly:
+Prompt-only:
 
 ```bash
 python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
@@ -185,7 +101,7 @@ python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
   --prompt "Initialize this repository as a TypeScript CLI for release automation."
 ```
 
-File-based example:
+File-based:
 
 ```bash
 python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
@@ -193,34 +109,34 @@ python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
   --source docs/project-plan.docx
 ```
 
-Multi-file example:
+Validate generated acceptance checks:
 
 ```bash
-python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
-  --repo . \
-  --prompt "Initialize this repository from docs/vision.md and docs/requirements.md. Use docs/vision.md as the primary source." \
-  --source docs/vision.md \
-  --source docs/requirements.md \
-  --primary-source docs/vision.md
+python repo-init/scripts/lint_acceptance.py --repo .
 ```
 
-The CLI keeps writes scoped to the explicit `--repo` target and stores initialization artifacts under `.repo-init/`.
+Command checks in `acceptance.json` run only when the linter is invoked with `--allow-command-checks`.
 
 ## Repository Layout
 
-- [`repo-init/`](./repo-init) contains the installable skill source and deterministic scripts
-- [`template/`](./template) contains example collaboration files that reflect the intended output shape
-- [`repo-init/references/`](./repo-init/references) contains the behavior and output contract references
+- `repo-init/`: installable skill source, references, and deterministic scripts
+- `repo-init/scripts/initialize_repo.py`: main entry point
+- `repo-init/scripts/smoke_initialize_repo.py`: regression smoke test
+- `repo-init/references/`: behavior, intake, runtime, and output contracts
+- `.github/workflows/ci.yml`: compile and smoke validation
 
-This repository is not just a script dump. It is the source of truth for how the skill should behave, what it should generate, and how that generated workspace is expected to be used.
+## Validation
 
-## Where To Read Next
+For most changes:
 
-- [`repo-init/SKILL.md`](./repo-init/SKILL.md) for the operator workflow
-- [`repo-init/references/output-contract.md`](./repo-init/references/output-contract.md) for the generated file contract
-- [`repo-init/references/init-executor.md`](./repo-init/references/init-executor.md) for execution rules
-- [`CONTRIBUTING.md`](./CONTRIBUTING.md) if you want to change the skill or templates
+```bash
+python repo-init/scripts/smoke_initialize_repo.py
+```
 
-## Repository Purpose In One Line
+For runtime checks:
 
-RepoFrame exists to make repository initialization produce a collaboration frame that humans and agents can keep working from, not just a pile of starter files.
+```bash
+python repo-init/scripts/doctor.py --format pdf --format docx
+```
+
+For output-contract details, read `repo-init/references/output-contract.md`.
