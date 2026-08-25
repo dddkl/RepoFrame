@@ -4,13 +4,6 @@ const NS = "http://www.w3.org/2000/svg";
 const ui = {
   connection: document.querySelector("#connection"),
   connectionLabel: document.querySelector("#connection-label"),
-  goalTitle: document.querySelector("#goal-title"),
-  goalOutcome: document.querySelector("#goal-outcome"),
-  goalStatus: document.querySelector("#goal-status"),
-  progress: document.querySelector("#progress"),
-  updated: document.querySelector("#updated"),
-  criteria: document.querySelector("#criteria"),
-  constraints: document.querySelector("#constraints"),
   diagnostics: document.querySelector("#diagnostics"),
   diagnosticTitle: document.querySelector("#diagnostic-title"),
   issueList: document.querySelector("#issue-list"),
@@ -29,6 +22,7 @@ const ui = {
 let etag = null;
 let currentState = null;
 let selectedNodeId = null;
+let pan = null;
 
 function setConnection(state, label) {
   ui.connection.dataset.state = state;
@@ -103,16 +97,19 @@ function renderGraph(nodes) {
     columns.get(rank).push(node);
   });
   const nodeWidth = 230;
-  const nodeHeight = 104;
+  const nodeHeight = 78;
   const columnGap = 112;
   const rowGap = 34;
   const padding = 48;
   const maxRows = Math.max(...Array.from(columns.values(), (column) => column.length));
   const maxRank = Math.max(...ranks.values());
   const width = padding * 2 + (maxRank + 1) * nodeWidth + maxRank * columnGap;
-  const height = Math.max(430, padding * 2 + maxRows * nodeHeight + (maxRows - 1) * rowGap);
-  ui.graph.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  ui.graph.setAttribute("width", width);
+  const viewportWidth = ui.graphScroll.clientWidth;
+  const viewportHeight = ui.graphScroll.clientHeight;
+  const graphWidth = Math.max(viewportWidth, width);
+  const height = Math.max(viewportHeight, padding * 2 + maxRows * nodeHeight + (maxRows - 1) * rowGap);
+  ui.graph.setAttribute("viewBox", `0 0 ${graphWidth} ${height}`);
+  ui.graph.setAttribute("width", graphWidth);
   ui.graph.setAttribute("height", height);
 
   const positions = new Map();
@@ -173,9 +170,7 @@ function renderGraph(nodes) {
     status.textContent = node.status;
     const title = svgElement("text", { x: 16, y: 54, class: "node-title" });
     title.textContent = truncated(node.title, 27);
-    const id = svgElement("text", { x: 16, y: 82, class: "node-id" });
-    id.textContent = node.id;
-    group.append(status, title, id);
+    group.append(status, title);
     const select = () => showNode(node.id);
     group.addEventListener("click", select);
     group.addEventListener("keydown", (event) => {
@@ -201,26 +196,20 @@ function showNode(nodeId) {
   ui.nodeSummary.textContent = node.summary || "No summary recorded yet.";
   fillList(ui.nodeDependencies, node.depends_on, "No dependencies");
   fillList(ui.nodeEvidence, node.evidence || [], "No evidence recorded");
-  ui.panel.hidden = false;
-  ui.closePanel.focus();
+  ui.panel.classList.add("is-open");
+  ui.panel.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => ui.closePanel.focus());
 }
 
 function closeNode() {
   selectedNodeId = null;
-  ui.panel.hidden = true;
+  ui.panel.classList.remove("is-open");
+  ui.panel.setAttribute("aria-hidden", "true");
 }
 
 function renderState(state) {
   currentState = state;
   ui.diagnostics.hidden = true;
-  ui.goalTitle.textContent = state.goal.title;
-  ui.goalOutcome.textContent = state.goal.outcome;
-  ui.goalStatus.textContent = state.goal.status;
-  const completed = state.nodes.filter((node) => node.status === "done" || node.status === "skipped").length;
-  ui.progress.textContent = `${completed} / ${state.nodes.length} completed`;
-  ui.updated.textContent = `Updated ${new Date(state.updated_at).toLocaleString()}`;
-  fillList(ui.criteria, state.goal.success_criteria, "No success criteria recorded");
-  fillList(ui.constraints, state.goal.constraints, "No constraints recorded");
   renderGraph(state.nodes);
   if (selectedNodeId) showNode(selectedNodeId);
 }
@@ -251,11 +240,45 @@ async function poll() {
     renderState(await response.json());
     setConnection("online", "Live");
   } catch (error) {
-    setConnection("offline", currentState ? "Offline — last valid snapshot" : "Viewer offline");
+    setConnection("offline", "Offline");
   }
 }
 
 ui.closePanel.addEventListener("click", closeNode);
+ui.graphScroll.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || event.target.closest(".node")) return;
+  pan = {
+    pointerId: event.pointerId,
+    x: event.clientX,
+    y: event.clientY,
+    scrollLeft: ui.graphScroll.scrollLeft,
+    scrollTop: ui.graphScroll.scrollTop,
+  };
+  ui.graphScroll.classList.add("is-panning");
+  ui.graphScroll.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+
+ui.graphScroll.addEventListener("pointermove", (event) => {
+  if (!pan || pan.pointerId !== event.pointerId) return;
+  ui.graphScroll.scrollLeft = pan.scrollLeft - (event.clientX - pan.x);
+  ui.graphScroll.scrollTop = pan.scrollTop - (event.clientY - pan.y);
+});
+
+function stopPanning(event) {
+  if (!pan || pan.pointerId !== event.pointerId) return;
+  if (ui.graphScroll.hasPointerCapture(event.pointerId)) {
+    ui.graphScroll.releasePointerCapture(event.pointerId);
+  }
+  pan = null;
+  ui.graphScroll.classList.remove("is-panning");
+}
+
+ui.graphScroll.addEventListener("pointerup", stopPanning);
+ui.graphScroll.addEventListener("pointercancel", stopPanning);
+window.addEventListener("resize", () => {
+  if (currentState) renderGraph(currentState.nodes);
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") closeNode();
 });

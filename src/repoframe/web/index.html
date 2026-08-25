@@ -9,7 +9,6 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/" aria-label="RepoFrame home">
-      <span class="brand-mark" aria-hidden="true">RF</span>
       <span>RepoFrame</span>
     </a>
     <div id="connection" class="connection" data-state="loading">
@@ -19,32 +18,6 @@
   </header>
 
   <main>
-    <section class="goal-shell" aria-labelledby="goal-title">
-      <div class="eyebrow-row">
-        <span class="eyebrow">Active goal</span>
-        <span id="goal-status" class="goal-status">—</span>
-      </div>
-      <h1 id="goal-title">Loading execution state…</h1>
-      <p id="goal-outcome" class="outcome"></p>
-      <div class="goal-meta">
-        <span id="progress">0 / 0 completed</span>
-        <span id="updated">Waiting for state</span>
-      </div>
-      <details id="goal-details" class="goal-details">
-        <summary>Success criteria and constraints</summary>
-        <div class="detail-columns">
-          <section>
-            <h2>Success criteria</h2>
-            <ul id="criteria"></ul>
-          </section>
-          <section>
-            <h2>Constraints</h2>
-            <ul id="constraints"></ul>
-          </section>
-        </div>
-      </details>
-    </section>
-
     <section id="diagnostics" class="diagnostics" hidden aria-live="polite">
       <p class="eyebrow">State needs attention</p>
       <h2 id="diagnostic-title">RepoFrame cannot render the current snapshot.</h2>
@@ -56,13 +29,6 @@
         <div>
           <p class="eyebrow">Execution path</p>
           <h2>Goal DAG</h2>
-        </div>
-        <div class="legend" aria-label="Node status legend">
-          <span><i data-status="active"></i>Active</span>
-          <span><i data-status="done"></i>Done</span>
-          <span><i data-status="blocked"></i>Blocked</span>
-          <span><i data-status="pending"></i>Pending</span>
-          <span><i data-status="skipped"></i>Skipped</span>
         </div>
       </div>
       <div id="empty-state" class="empty-state" hidden>
@@ -76,7 +42,7 @@
     </section>
   </main>
 
-  <aside id="node-panel" class="node-panel" hidden aria-labelledby="node-title">
+  <aside id="node-panel" class="node-panel" aria-hidden="true" aria-labelledby="node-title">
     <button id="close-panel" class="close-button" type="button" aria-label="Close node details">×</button>
     <p id="node-status" class="eyebrow"></p>
     <h2 id="node-title"></h2>
