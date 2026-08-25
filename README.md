@@ -1,5 +1,11 @@
 # RepoFrame
 
+> [!WARNING]
+> This branch preserves the deprecated `repo-init` Codex skill. It is no longer
+> maintained. RepoFrame has moved to the default branch as an agent-agnostic
+> execution-state protocol, CLI, and local DAG viewer. Use the default branch
+> for the current implementation.
+
 RepoFrame is the source repository for `repo-init`, an installable Codex skill that initializes a repository with a small, explicit collaboration layer for humans and agents.
 
 The goal is not to scaffold application code. The goal is to make project state durable: current objective, accepted constraints, planned tasks, machine-checkable acceptance, and handoff context.
