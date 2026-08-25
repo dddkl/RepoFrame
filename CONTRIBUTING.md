@@ -1,74 +1,58 @@
 # Contributing
 
-Thanks for contributing to RepoFrame.
+RepoFrame is intentionally small. Contributions should preserve its role as an agent-agnostic state protocol and local visualization tool rather than adding workflow policy.
 
-This repository is the source for the `repo-init` Codex skill. Most changes affect a deterministic initialization pipeline, so contributions should optimize for explicit behavior, compatibility, and validation rather than cleverness.
+## Prerequisites
 
-## Before You Start
+- Python 3.10 or newer
+- No third-party runtime dependencies
 
-- Read `repo-init/SKILL.md` to understand the intended operator workflow.
-- Read `repo-init/references/output-contract.md` before changing generated files or initialization behavior.
-- Read `repo-init/references/runtime.md` before changing runtime assumptions or dependency handling.
-
-## Development Prerequisites
-
-- Python `3.10+`
-- Packages:
-  - `pypdf`
-  - `python-docx`
-
-Install local dependencies with:
+Create a local editable installation when needed:
 
 ```bash
-python -m pip install pypdf python-docx
+python -m pip install -e .
 ```
 
-For fresh environments, run the preflight check before file-ingest work:
+## Validate changes
+
+Run the complete standard-library test suite:
 
 ```bash
-python repo-init/scripts/doctor.py
+python -m unittest discover -s tests -v
 ```
 
-## Validation
-
-Run the validations that match your change.
-
-Minimum validation for most changes:
+Build and install the package when changing packaging or resources:
 
 ```bash
-python -m py_compile repo-init/scripts/initialize_repo.py repo-init/scripts/project_text.py repo-init/scripts/init_summary.py repo-init/scripts/init_task_plan.py repo-init/scripts/init_render.py repo-init/scripts/init_output.py repo-init/scripts/build_source_bundle.py
-python repo-init/scripts/smoke_initialize_repo.py
+python -m pip install build
+python -m build
+python -m pip install --force-reinstall dist/*.whl
+repoframe --version
 ```
 
-If you change file-ingest logic, also run:
+For viewer changes, initialize a temporary repository with a branching DAG, run `repoframe view`, and inspect the active, done, blocked, pending, and skipped states at desktop and narrow widths.
 
-```bash
-python repo-init/scripts/doctor.py --format pdf --format docx
-```
+## Protocol changes
 
-If you change document contracts or generated templates:
+`src/repoframe/resources/state.schema.json` is the public structural contract. The Python validator adds semantic DAG checks that JSON Schema cannot express conveniently.
 
-- update the matching references in `repo-init/references/`
-- update generated-output assertions in `repo-init/scripts/smoke_initialize_repo.py` when needed
-- confirm the generated output still matches the documented contract
+When changing the protocol:
 
-## Change Expectations
+- keep the packaged Schema and Python validator aligned;
+- add tests that fail before the implementation change;
+- do not reinterpret an existing `schema_version` incompatibly;
+- reject unknown fields instead of letting state grow into an unbounded log;
+- keep `state.json` the only execution-state source of truth.
 
-- Preserve existing CLI entry points unless the change explicitly requires a breaking change.
-- Preserve `.repo-init/*.json` compatibility unless the change is intentionally schema-level and documented.
-- Keep `initialize_repo.py` deterministic and explicit.
-- Prefer shared low-level helpers over duplicating parsing logic across scripts.
-- Do not silently loosen preservation rules for user-authored project plans.
-- Do not treat a suggested `Next Step` as permission to auto-execute implementation work during initialization.
+## Product boundaries
 
-## Pull Requests
+- Prefer the Python standard library and bundled browser assets.
+- Do not add a framework for a behavior that can remain a small function.
+- Keep agent adapters thin and semantically identical.
+- Preserve user-authored content outside RepoFrame managed markers.
+- Treat the viewer as read-only until a separately designed intent API exists.
+- Do not record private model reasoning, chat history, or per-save activity.
 
-Good pull requests usually include:
+## Pull requests
 
-- a short explanation of the problem
-- a clear summary of the behavior change
-- the exact validation commands you ran
-- contract/template updates when generated output changed
-- notes on compatibility risk if the change touches mode selection, write policy, or adaptive goal/task planning
-
-If a change is intentionally behavior-changing, call that out explicitly in the PR description.
+Describe the user-visible behavior, protocol compatibility impact, and exact verification commands. Changes to the Schema, validation semantics, adapter discovery, local HTTP boundary, or package data should be called out explicitly.

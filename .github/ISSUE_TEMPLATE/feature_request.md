@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an improvement to repo-init behavior, generated output, or maintainer workflow
+about: Suggest an improvement to the RepoFrame protocol, CLI, adapters, or viewer
 title: "[Feature] "
 labels: enhancement
 assignees: ''
@@ -22,12 +22,12 @@ Explain who benefits and what becomes easier, safer, or clearer.
 
 Call out any of these if relevant:
 
-- initialization mode selection
-- generated document contract
-- adaptive goal/task planning
-- runtime / dependency behavior
-- validation or contributor tooling
+- state protocol or schema compatibility
+- validation behavior
+- agent adapter discovery
+- local viewer or HTTP API boundary
+- packaging or contributor tooling
 
 ## Additional Context
 
-Optional examples, prompts, source files, or prior art.
+Optional state examples, diagrams, or expected CLI behavior.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Repo Init"
-  short_description: "Initialize repos from prompts or project plans."
-  default_prompt: "Use $repo-init to initialize this repository from my prompt and any plan file I provide."

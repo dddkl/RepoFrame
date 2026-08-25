@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepoFrame</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="RepoFrame home">
+      <span class="brand-mark" aria-hidden="true">RF</span>
+      <span>RepoFrame</span>
+    </a>
+    <div id="connection" class="connection" data-state="loading">
+      <span class="connection-dot" aria-hidden="true"></span>
+      <span id="connection-label">Connecting</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="goal-shell" aria-labelledby="goal-title">
+      <div class="eyebrow-row">
+        <span class="eyebrow">Active goal</span>
+        <span id="goal-status" class="goal-status">—</span>
+      </div>
+      <h1 id="goal-title">Loading execution state…</h1>
+      <p id="goal-outcome" class="outcome"></p>
+      <div class="goal-meta">
+        <span id="progress">0 / 0 completed</span>
+        <span id="updated">Waiting for state</span>
+      </div>
+      <details id="goal-details" class="goal-details">
+        <summary>Success criteria and constraints</summary>
+        <div class="detail-columns">
+          <section>
+            <h2>Success criteria</h2>
+            <ul id="criteria"></ul>
+          </section>
+          <section>
+            <h2>Constraints</h2>
+            <ul id="constraints"></ul>
+          </section>
+        </div>
+      </details>
+    </section>
+
+    <section id="diagnostics" class="diagnostics" hidden aria-live="polite">
+      <p class="eyebrow">State needs attention</p>
+      <h2 id="diagnostic-title">RepoFrame cannot render the current snapshot.</h2>
+      <ul id="issue-list"></ul>
+    </section>
+
+    <section class="workspace" aria-label="Execution graph">
+      <div class="graph-header">
+        <div>
+          <p class="eyebrow">Execution path</p>
+          <h2>Goal DAG</h2>
+        </div>
+        <div class="legend" aria-label="Node status legend">
+          <span><i data-status="active"></i>Active</span>
+          <span><i data-status="done"></i>Done</span>
+          <span><i data-status="blocked"></i>Blocked</span>
+          <span><i data-status="pending"></i>Pending</span>
+          <span><i data-status="skipped"></i>Skipped</span>
+        </div>
+      </div>
+      <div id="empty-state" class="empty-state" hidden>
+        <span aria-hidden="true">◇</span>
+        <h3>Waiting for the agent to establish an execution path</h3>
+        <p>The goal is valid. Nodes will appear here when meaningful stages are identified.</p>
+      </div>
+      <div id="graph-scroll" class="graph-scroll">
+        <svg id="graph" role="img" aria-label="Directed acyclic graph of execution stages"></svg>
+      </div>
+    </section>
+  </main>
+
+  <aside id="node-panel" class="node-panel" hidden aria-labelledby="node-title">
+    <button id="close-panel" class="close-button" type="button" aria-label="Close node details">×</button>
+    <p id="node-status" class="eyebrow"></p>
+    <h2 id="node-title"></h2>
+    <p id="node-summary" class="node-summary"></p>
+    <section>
+      <h3>Depends on</h3>
+      <ul id="node-dependencies"></ul>
+    </section>
+    <section>
+      <h3>Evidence</h3>
+      <ul id="node-evidence"></ul>
+    </section>
+  </aside>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

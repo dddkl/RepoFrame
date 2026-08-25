@@ -5,9 +5,10 @@
 
 ## Validation
 
-- [ ] `python -m py_compile ...` for touched scripts
-- [ ] `python repo-init/scripts/smoke_initialize_repo.py`
-- [ ] `python repo-init/scripts/doctor.py` if file-ingest behavior changed
+- [ ] `python -m unittest discover -s tests -v`
+- [ ] `python -m compileall -q src tests`
+- [ ] Built and installed a wheel if package data or packaging changed
+- [ ] Inspected the local viewer if browser behavior changed
 
 List the exact commands you ran:
 
@@ -15,18 +16,19 @@ List the exact commands you ran:
 # commands here
 ```
 
-## Contract / Template Impact
+## Protocol / Product Impact
 
-- [ ] No generated contract changes
-- [ ] Updated `repo-init/references/` if generated output changed
-- [ ] Updated `template/` if generated output changed
+- [ ] No state protocol changes
+- [ ] Updated Schema, Python validation, and tests together if the protocol changed
+- [ ] Preserved content outside RepoFrame adapter markers
+- [ ] Kept the viewer read-only or documented an explicitly approved boundary change
 
 ## Risk Notes
 
 Call out anything that touches:
 
-- mode selection
-- write policy
-- adaptive goal/task planning
-- artifact compatibility
-- runtime / dependency assumptions
+- schema-version compatibility
+- atomic initialization or user-authored instruction files
+- loopback HTTP security
+- packaged browser resources
+- Python 3.10 compatibility or runtime dependencies

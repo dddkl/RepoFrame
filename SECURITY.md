@@ -1,39 +1,23 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-RepoFrame is currently maintained from the latest default branch.
+RepoFrame is currently maintained from the latest default branch. The archived `repo-init` skill is unsupported.
 
-| Version | Supported |
-| --- | --- |
-| Latest default branch | Yes |
-| Older commits or forks | No |
+## Local viewer security
 
-If tagged releases are added later, support policy can be expanded at that point.
+The RepoFrame viewer is designed for local development:
 
-## Reporting a Vulnerability
+- it binds only to `127.0.0.1`;
+- it exposes a read-only, validated state endpoint;
+- it serves only packaged, whitelisted browser assets;
+- it rejects state-changing HTTP methods;
+- it does not execute commands or connect to an agent.
 
-Please do not post undisclosed exploit details in a public GitHub issue.
+`.repoframe/state.json` can still contain sensitive project names, constraints, paths, or evidence. Do not expose the viewer through a reverse proxy, tunnel, port-forward, or public network. Treat the state file according to the repository's own confidentiality requirements.
 
-Preferred reporting path:
+## Reporting a vulnerability
 
-1. Use GitHub's private vulnerability reporting for this repository if it is enabled.
-2. If private vulnerability reporting is not available, open a minimal issue requesting a private security contact path without including reproduction details or exploit material.
+Use GitHub private vulnerability reporting when available. If it is unavailable, open a minimal public issue requesting a private contact path without including exploit details.
 
-When reporting a vulnerability, include:
-
-- affected script or behavior
-- impact summary
-- reproduction conditions
-- whether the issue requires specific input files or runtime dependencies
-- any known mitigations or safe workarounds
-
-## Response Expectations
-
-Best effort goals for maintainers:
-
-- acknowledge receipt within a reasonable time
-- reproduce and triage the issue
-- avoid public disclosure before a mitigation or fix path exists
-
-RepoFrame does not currently offer a bug bounty program.
+Include the affected version, impact, reproduction conditions, and any known mitigation. RepoFrame does not currently operate a bug bounty program.

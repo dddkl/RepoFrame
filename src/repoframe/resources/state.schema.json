@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://repoframe.dev/schema/state-v1.json",
+  "title": "RepoFrame execution state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schema_version", "goal", "nodes", "updated_at"],
+  "properties": {
+    "$schema": {"const": "./state.schema.json"},
+    "schema_version": {"const": 1},
+    "goal": {"$ref": "#/$defs/goal"},
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "stringList": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/nonEmptyString"}
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "outcome", "success_criteria", "constraints", "status"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "title": {"$ref": "#/$defs/nonEmptyString"},
+        "outcome": {"$ref": "#/$defs/nonEmptyString"},
+        "success_criteria": {"$ref": "#/$defs/stringList"},
+        "constraints": {"$ref": "#/$defs/stringList"},
+        "status": {"enum": ["active", "done"]}
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "status", "depends_on"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "title": {"$ref": "#/$defs/nonEmptyString"},
+        "status": {"enum": ["pending", "active", "done", "blocked", "skipped"]},
+        "depends_on": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "summary": {"$ref": "#/$defs/nonEmptyString"},
+        "evidence": {"$ref": "#/$defs/stringList"}
+      }
+    }
+  }
+}

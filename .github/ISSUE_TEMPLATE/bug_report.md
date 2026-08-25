@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible defect in repo-init behavior or repository tooling
+about: Report a reproducible defect in RepoFrame protocol, CLI, or viewer behavior
 title: "[Bug] "
 labels: bug
 assignees: ''
@@ -13,7 +13,7 @@ Describe the problem in one or two sentences.
 ## Reproduction
 
 1. Command or workflow used:
-2. Input prompt / source files involved:
+2. Relevant `.repoframe/state.json` excerpt:
 3. Expected behavior:
 4. Actual behavior:
 
@@ -21,18 +21,18 @@ Describe the problem in one or two sentences.
 
 - OS:
 - Python version:
-- Installed packages:
-- Relevant file formats involved, if any:
+- RepoFrame version:
+- Browser, if the viewer is involved:
 
 ## Validation
 
 List any commands you ran, for example:
 
 ```bash
-python repo-init/scripts/doctor.py
-python repo-init/scripts/smoke_initialize_repo.py
+repoframe validate --json
+python -m unittest discover -s tests -v
 ```
 
 ## Additional Context
 
-Include logs, screenshots, generated file snippets, or artifact details if they help.
+Include diagnostics, screenshots, or minimal state snippets if they help. Remove sensitive project information first.

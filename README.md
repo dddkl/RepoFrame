@@ -1,142 +1,158 @@
 # RepoFrame
 
-RepoFrame is the source repository for `repo-init`, an installable Codex skill that initializes a repository with a small, explicit collaboration layer for humans and agents.
+RepoFrame makes a coding agent's progress visible and resumable.
 
-The goal is not to scaffold application code. The goal is to make project state durable: current objective, accepted constraints, planned tasks, machine-checkable acceptance, and handoff context.
-
-## Use It
-
-Use `$repo-init` in Codex. That is the primary interface.
-
-```text
-Use $repo-init to initialize this repository: build a TypeScript CLI called ReleasePilot for small release teams. The goal is to automate changelog preparation. Use Node.js, TypeScript, and Vitest. Do not build a web UI in the first phase.
-```
-
-You can initialize from plan files:
-
-```text
-Use $repo-init to initialize this repository from docs/vision.md and docs/requirements.md. Use docs/vision.md as the primary source.
-```
-
-You can also hydrate an existing repository:
-
-```text
-Use $repo-init to add the collaboration layer to this existing repository without treating it as a greenfield project.
-```
-
-## What It Produces
-
-`repo-init` creates or supplements:
-
-- `README.md`
-- `AGENT.md`
-- `PROJECT.md`
-- `STATUS.md`
-- `DECISIONS.md`
-- `.agent/` detailed collaboration rules
-- `goals/` milestone goal files
-- `tasks/` planned task files
-- `acceptance.json` machine-checkable milestone acceptance
-- `.repo-init/` normalized intake artifacts and `init-report.md`
-
-Every initialization gets one active milestone goal and at least one planned task. Larger projects get a few milestone goals and as many evidence-backed tasks as help collaboration. Initialization stops after writing the collaboration layer; it does not execute the recommended next task.
-
-## Modes
-
-`repo-init` selects one of three modes:
-
-- `greenfield`: start from a prompt in an empty or near-empty repository
-- `plan-ingest`: initialize from one or more authoritative project-plan files
-- `repo-hydrate`: add collaboration files around an existing codebase or project
-
-The default posture is preserve-first. Existing project plans and user-authored repository files are preserved unless the user explicitly asks for a rewrite.
-
-## Input Support
-
-Supported project-plan inputs:
-
-- `.md`
-- `.txt`
-- `.docx`
-- `.pdf`
-- `.html`
-
-Markdown remains the recommended source format. The pipeline is deterministic and text-first; screenshots, scanned pages, embedded images, and diagram-only requirements are less reliable than plain text or Mermaid-style diagrams.
+It is a local-first, agent-agnostic execution-state protocol with a zero-runtime-dependency Python CLI and a read-only DAG viewer. RepoFrame records one goal and the meaningful stages leading to it. It does not prescribe how an agent should think or turn project work into a heavyweight task-management process.
 
 ## Install
 
-Copy `repo-init/` into `$CODEX_HOME/skills/repo-init`.
-
-Windows:
-
-```powershell
-Copy-Item -LiteralPath .\repo-init -Destination "$env:CODEX_HOME\skills\repo-init" -Recurse -Force
-```
-
-## Runtime
-
-Use Python `3.10+`.
-
-Install file-ingest dependencies when needed:
+RepoFrame requires Python 3.10 or newer.
 
 ```bash
-python -m pip install pypdf python-docx
+python -m pip install .
 ```
 
-Run the preflight check for fresh environments or file-ingest workflows:
+For isolated command-line installation from a checkout:
 
 ```bash
-python "$CODEX_HOME/skills/repo-init/scripts/doctor.py"
+pipx install .
 ```
 
-## CLI Fallback
+The package exposes both `repoframe` and `python -m repoframe`.
 
-The deterministic backend is available for debugging and non-Codex use.
+## Quick start
 
-Prompt-only:
+Initialize a repository:
 
 ```bash
-python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
-  --repo . \
-  --prompt "Initialize this repository as a TypeScript CLI for release automation."
+repoframe init \
+  --goal "Ship authenticated access" \
+  --outcome "Users can sign in and reach protected resources" \
+  --criterion "Authentication tests pass" \
+  --constraint "Do not use an external identity provider" \
+  --agents auto
 ```
 
-File-based:
+This creates:
+
+```text
+.repoframe/
+├── state.json
+├── state.schema.json
+└── instructions.md
+```
+
+Validate state after an agent changes it:
 
 ```bash
-python "$CODEX_HOME/skills/repo-init/scripts/initialize_repo.py" \
-  --repo . \
-  --source docs/project-plan.docx
+repoframe validate
+repoframe validate --json
 ```
 
-Validate generated acceptance checks:
+Open the local viewer:
 
 ```bash
-python repo-init/scripts/lint_acceptance.py --repo .
+repoframe view
 ```
 
-Command checks in `acceptance.json` run only when the linter is invoked with `--allow-command-checks`.
+The viewer binds only to `127.0.0.1`, opens `http://127.0.0.1:7331/`, and updates when `.repoframe/state.json` changes. Use `--no-open` to start it without opening a browser or `--port` to choose a different loopback port.
 
-## Repository Layout
+## State protocol
 
-- `repo-init/`: installable skill source, references, and deterministic scripts
-- `repo-init/scripts/initialize_repo.py`: main entry point
-- `repo-init/scripts/smoke_initialize_repo.py`: regression smoke test
-- `repo-init/references/`: behavior, intake, runtime, and output contracts
-- `.github/workflows/ci.yml`: compile and smoke validation
+`state.json` is the sole execution-state source of truth. Git supplies history and recovery.
 
-## Validation
+```json
+{
+  "$schema": "./state.schema.json",
+  "schema_version": 1,
+  "goal": {
+    "id": "ship-auth",
+    "title": "Ship authenticated access",
+    "outcome": "Users can sign in and reach protected resources",
+    "success_criteria": ["Authentication tests pass"],
+    "constraints": ["Do not use an external identity provider"],
+    "status": "active"
+  },
+  "nodes": [
+    {
+      "id": "inspect-auth",
+      "title": "Inspect existing authentication boundaries",
+      "status": "done",
+      "depends_on": [],
+      "summary": "Session and route boundaries are documented.",
+      "evidence": ["src/auth/session.py"]
+    },
+    {
+      "id": "implement-auth",
+      "title": "Implement the authentication flow",
+      "status": "active",
+      "depends_on": ["inspect-auth"]
+    }
+  ],
+  "updated_at": "2026-08-25T08:00:00Z"
+}
+```
 
-For most changes:
+Node states are `pending`, `active`, `done`, `blocked`, and `skipped`. A snapshot may contain at most one active node. Dependencies must refer to existing nodes, active-node dependencies must be complete, and the graph must remain acyclic. The bundled JSON Schema documents the structural contract; `repoframe validate` also enforces semantic DAG rules.
+
+## Agent adapters
+
+RepoFrame's core is independent of any agent product. `repoframe init --agents` only adds a small managed section to instruction files that an agent already understands.
+
+| Selection | Instruction file |
+| --- | --- |
+| `codex` | `AGENTS.md` |
+| `cursor` | `AGENTS.md` |
+| `claude` | `CLAUDE.md` |
+| `gemini` | `GEMINI.md` |
+| `copilot` | `.github/copilot-instructions.md` |
+
+Available values are `auto`, `all`, `none`, or a comma-separated selection. `auto` detects existing instruction files and falls back to `AGENTS.md` when none exist. Managed markers make updates idempotent, and content outside those markers is preserved.
+
+Compatibility means different supported agents can take turns continuing the same goal. Version 0.1 assumes one writer at a time; it does not implement concurrent state merging.
+
+## Viewer boundary
+
+The browser UI is deliberately read-only. It serves packaged HTML, CSS, and JavaScript through a standard-library HTTP server and reads validated state from `GET /api/v1/state`. It has no CDN, database, external network dependency, state editor, shell access, or agent-control endpoint.
+
+Future HTML-to-agent interaction can be added through an explicit, versioned intent API. It should not turn the existing state endpoint into arbitrary browser-driven file mutation.
+
+## Non-goals
+
+RepoFrame is not:
+
+- an agent skill, plugin, SDK, or MCP server;
+- a task manager or orchestration framework;
+- a cloud synchronization service;
+- a replacement for source code, tests, Git, or durable project documentation;
+- a recorder of private reasoning or every file edit.
+
+## Development
+
+Run the tests:
 
 ```bash
-python repo-init/scripts/smoke_initialize_repo.py
+python -m unittest discover -s tests -v
 ```
 
-For runtime checks:
+Build installable artifacts:
 
 ```bash
-python repo-init/scripts/doctor.py --format pdf --format docx
+python -m pip install build
+python -m build
 ```
 
-For output-contract details, read `repo-init/references/output-contract.md`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for protocol and compatibility rules.
+
+## Legacy
+
+The former `repo-init` Codex skill is archived and no longer maintained:
+
+- branch: `codex/legacy-repo-init-skill`
+- tag: `repo-init-skill-v1-final`
+
+The old implementation is intentionally absent from the default branch.
+
+## License
+
+RepoFrame is available under the MIT License.

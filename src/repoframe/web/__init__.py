@@ -1,0 +1,2 @@
+"""Packaged RepoFrame viewer assets."""
+
