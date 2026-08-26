@@ -14,12 +14,15 @@ from .state import load_and_validate
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="repoframe", description="Visible, resumable execution state for coding agents.")
+    parser = argparse.ArgumentParser(
+        prog="repoframe",
+        description="Observe fast iteration through Git or visualize resumable Long Run execution state.",
+    )
     parser.add_argument("--version", action="version", version=f"repoframe {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     init_parser = commands.add_parser("init", help="Initialize or refresh RepoFrame in the current repository.")
-    init_parser.add_argument("--goal", help="Goal title; required when creating new state.")
+    init_parser.add_argument("--goal", help="Create Long Run state for this Goal; omit for Iteration-only setup.")
     init_parser.add_argument("--outcome", help="Desired outcome; defaults to the goal title.")
     init_parser.add_argument("--criterion", action="append", default=[], help="Success criterion; repeat as needed.")
     init_parser.add_argument("--constraint", action="append", default=[], help="Hard constraint; repeat as needed.")
@@ -32,15 +35,22 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = commands.add_parser("validate", help="Validate .repoframe/state.json.")
     validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON diagnostics.")
 
-    view_parser = commands.add_parser("view", help="Open the local read-only DAG viewer.")
+    view_parser = commands.add_parser("view", help="Open the local Iteration and Long Run viewer.")
     view_parser.add_argument("--port", type=int, default=7331, help="Loopback port (default: 7331).")
     view_parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically.")
     return parser
 
 
 def _run_init(args: argparse.Namespace, cwd: Path) -> int:
-    if not (cwd / ".repoframe/state.json").exists() and (args.goal is None or not args.goal.strip()):
-        print("repoframe init: --goal is required when creating new state.", file=sys.stderr)
+    if args.goal is not None and not args.goal.strip():
+        print("repoframe init: --goal cannot be empty.", file=sys.stderr)
+        return 2
+    if (
+        not (cwd / ".repoframe/state.json").exists()
+        and (args.goal is None or not args.goal.strip())
+        and (args.outcome is not None or args.criterion or args.constraint)
+    ):
+        print("repoframe init: --goal is required with outcome, criterion, or constraint.", file=sys.stderr)
         return 2
     try:
         changes = initialize(cwd, args.goal, args.outcome, args.criterion, args.constraint, args.agents)
@@ -50,7 +60,10 @@ def _run_init(args: argparse.Namespace, cwd: Path) -> int:
     print("RepoFrame initialized.")
     for change in changes:
         print(f"  {change.action:9} {change.path.as_posix()}")
-    print("Next: update .repoframe/state.json, run 'repoframe validate', then 'repoframe view'.")
+    if (cwd / ".repoframe/state.json").exists():
+        print("Next: maintain state only for Long Run stages, validate it, then run 'repoframe view'.")
+    else:
+        print("Next: run 'repoframe view' and use Iteration with no execution-state maintenance.")
     return 0
 
 

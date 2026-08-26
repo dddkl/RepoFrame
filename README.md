@@ -1,8 +1,10 @@
 # RepoFrame
 
-RepoFrame makes a coding agent's progress visible and resumable.
+RepoFrame gives local coding-agent collaboration two deliberately different modes:
 
-It is a local-first, agent-agnostic execution-state protocol with a zero-runtime-dependency Python CLI and a read-only DAG viewer. RepoFrame records one goal and the meaningful stages leading to it. It does not prescribe how an agent should think or turn project work into a heavyweight task-management process.
+> **Iteration observes development. Long Run models execution.**
+
+Iteration is a Git-oriented view for fast human–Agent work with almost no bookkeeping. Long Run is a Goal-oriented execution view for autonomous work that must survive interruption or handoff. RepoFrame is local-first, Agent-independent, read-only in the browser, and has no Python runtime dependencies.
 
 ## Install
 
@@ -12,17 +14,50 @@ RepoFrame requires Python 3.10 or newer.
 python -m pip install .
 ```
 
-For isolated command-line installation from a checkout:
-
-```bash
-pipx install .
-```
-
 The package exposes both `repoframe` and `python -m repoframe`.
 
-## Quick start
+## Two modes
 
-Initialize a repository:
+| | Iteration | Long Run |
+| --- | --- | --- |
+| Purpose | Rapid human–Agent iteration | Longer autonomous execution |
+| Primary source | Git working tree and history | `.repoframe/state.json` |
+| Goal and DAG | None | Goal + gradually expanded DAG |
+| Agent maintenance | None | Meaningful stage changes only |
+| Recovery | Repository and Git | State, repository, and Git |
+
+RepoFrame does not copy Git activity into a second log. It does not maintain current-focus fields, per-save summaries, private reasoning, owners, deadlines, percentages, or orchestration controls.
+
+## Iteration
+
+Initialize RepoFrame without a Goal:
+
+```bash
+repoframe init --agents auto
+repoframe view
+```
+
+This creates only the shared resources needed to explain the modes and support a future Long Run:
+
+```text
+.repoframe/
+├── state.schema.json
+└── instructions.md
+```
+
+It does **not** create `state.json`. Open [`http://127.0.0.1:7331/iteration`](http://127.0.0.1:7331/iteration) to see:
+
+- current branch and working-tree status;
+- changed, staged, unstaged, and untracked files;
+- aggregate additions and deletions from Git diff statistics;
+- latest commit;
+- recent commit activity.
+
+The page reads Git on demand through a local, read-only API. Agents work normally and do not update RepoFrame state during Iteration.
+
+## Long Run
+
+Create a Long Run when work needs durable execution context:
 
 ```bash
 repoframe init \
@@ -33,33 +68,20 @@ repoframe init \
   --agents auto
 ```
 
-This creates:
-
-```text
-.repoframe/
-├── state.json
-├── state.schema.json
-└── instructions.md
-```
-
-Validate state after an agent changes it:
+This additionally creates `.repoframe/state.json`. Validate it after meaningful updates:
 
 ```bash
 repoframe validate
 repoframe validate --json
 ```
 
-Open the local viewer:
+Open [`http://127.0.0.1:7331/long-run`](http://127.0.0.1:7331/long-run). Each Goal has an independent URL such as `/long-run/ship-auth`; the Execution Path selector switches between available Goals without combining their DAGs.
 
-```bash
-repoframe view
-```
+The Agent should expand the DAG from actual progress rather than plan the entire Goal up front. State changes belong at meaningful stage boundaries and immediately on blocking, material replanning, or handoff. Completing the Goal ends its execution path.
 
-The viewer binds only to `127.0.0.1`, opens `http://127.0.0.1:7331/`, and updates when `.repoframe/state.json` changes. Use `--no-open` to start it without opening a browser or `--port` to choose a different loopback port.
+### Long Run state protocol
 
-## State protocol
-
-`state.json` is the sole execution-state source of truth. Git supplies history and recovery.
+The v1 schema remains intentionally small:
 
 ```json
 {
@@ -76,28 +98,38 @@ The viewer binds only to `127.0.0.1`, opens `http://127.0.0.1:7331/`, and update
   "nodes": [
     {
       "id": "inspect-auth",
-      "title": "Inspect existing authentication boundaries",
+      "title": "Inspect authentication boundaries",
       "status": "done",
       "depends_on": [],
-      "summary": "Session and route boundaries are documented.",
+      "summary": "Session and route boundaries are understood.",
       "evidence": ["src/auth/session.py"]
     },
     {
       "id": "implement-auth",
-      "title": "Implement the authentication flow",
+      "title": "Implement authentication flow",
       "status": "active",
       "depends_on": ["inspect-auth"]
     }
   ],
-  "updated_at": "2026-08-25T08:00:00Z"
+  "updated_at": "2026-08-26T08:00:00Z"
 }
 ```
 
-Node states are `pending`, `active`, `done`, `blocked`, and `skipped`. A snapshot may contain at most one active node. Dependencies must refer to existing nodes, active-node dependencies must be complete, and the graph must remain acyclic. The bundled JSON Schema documents the structural contract; `repoframe validate` also enforces semantic DAG rules.
+Node states are `pending`, `active`, `done`, `blocked`, and `skipped`. A snapshot may contain at most one active node. Dependencies must exist, active-node dependencies must be complete, and the graph must be acyclic. No mode field is added to Goal or Node.
+
+### Multiple Goal views
+
+`.repoframe/state.json` is the current Long Run. The Viewer can also discover optional, read-only snapshots placed directly in:
+
+```text
+.repoframe/goals/*.json
+```
+
+Every snapshot uses the same v1 schema and receives its own `/long-run/<goal-id>` page. Invalid snapshots are reported without preventing valid Goals from rendering. RepoFrame does not provide Goal lifecycle, assignment, scheduling, or concurrency commands; Git remains responsible for history. The CLI does not create the archive directory automatically.
 
 ## Agent adapters
 
-RepoFrame's core is independent of any agent product. `repoframe init --agents` only adds a small managed section to instruction files that an agent already understands.
+`repoframe init --agents` adds one small, managed block to instruction files already understood by supported products:
 
 | Selection | Instruction file |
 | --- | --- |
@@ -107,42 +139,52 @@ RepoFrame's core is independent of any agent product. `repoframe init --agents` 
 | `gemini` | `GEMINI.md` |
 | `copilot` | `.github/copilot-instructions.md` |
 
-Available values are `auto`, `all`, `none`, or a comma-separated selection. `auto` detects existing instruction files and falls back to `AGENTS.md` when none exist. Managed markers make updates idempotent, and content outside those markers is preserved.
+Values are `auto`, `all`, `none`, or a comma-separated selection. `auto` detects existing files and falls back to `AGENTS.md`. Content outside RepoFrame markers is preserved. All adapters share the same semantics: Iteration does not maintain execution state; Long Run reads and updates it sparingly.
 
-Compatibility means different supported agents can take turns continuing the same goal. Version 0.1 assumes one writer at a time; it does not implement concurrent state merging.
+## Local viewer and API
 
-## Viewer boundary
+```bash
+repoframe view
+repoframe view --port 7331
+repoframe view --no-open
+```
 
-The browser UI is deliberately read-only. It serves packaged HTML, CSS, and JavaScript through a standard-library HTTP server and reads validated state from `GET /api/v1/state`. It has no CDN, database, external network dependency, state editor, shell access, or agent-control endpoint.
+The server binds only to `127.0.0.1` and provides these read-only endpoints:
 
-Future HTML-to-agent interaction can be added through an explicit, versioned intent API. It should not turn the existing state endpoint into arbitrary browser-driven file mutation.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/v1/iteration` | Git working changes and commit activity |
+| `GET /api/v1/goals` | Valid Long Run Goal summaries and snapshot diagnostics |
+| `GET /api/v1/goals/<goal-id>` | One validated Goal and DAG |
+| `GET /api/v1/state` | Backward-compatible current-state endpoint |
+| `GET /healthz` | Process health |
+
+Responses use ETags. The page polls locally and skips unchanged payloads. Static assets are packaged; there is no CDN, database, Web framework, external network request, state editor, shell endpoint, or Agent-control endpoint.
+
+The Git API invokes only fixed, read-only Git inspection commands. It never stages, commits, resets, checks out, or modifies repository files.
+
+## Configuration boundary
+
+Version 0.2 does not need `.repoframe/config.json` and does not create one. If global UI configuration becomes necessary, it belongs in `config.json`; Long Run execution state remains in state snapshots. UI preferences must not inflate Goal or Node records.
 
 ## Non-goals
 
 RepoFrame is not:
 
-- an agent skill, plugin, SDK, or MCP server;
-- a task manager or orchestration framework;
-- a cloud synchronization service;
-- a replacement for source code, tests, Git, or durable project documentation;
-- a recorder of private reasoning or every file edit.
+- a task manager or Agent orchestrator;
+- an Agent skill, plugin, SDK, or MCP server;
+- a cloud synchronization or remote monitoring service;
+- a recorder of private reasoning, chat history, or every edit;
+- a replacement for source code, tests, Git, or durable project documentation.
 
 ## Development
 
-Run the tests:
-
 ```bash
 python -m unittest discover -s tests -v
+python -m compileall -q src tests
 ```
 
-Build installable artifacts:
-
-```bash
-python -m pip install build
-python -m build
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for protocol and compatibility rules.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for mode boundaries and compatibility rules.
 
 ## Legacy
 

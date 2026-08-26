@@ -23,6 +23,8 @@ Explain who benefits and what becomes easier, safer, or clearer.
 Call out any of these if relevant:
 
 - state protocol or schema compatibility
+- Iteration or Long Run mode boundary
+- Git inspection behavior
 - validation behavior
 - agent adapter discovery
 - local viewer or HTTP API boundary

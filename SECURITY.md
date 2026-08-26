@@ -2,22 +2,27 @@
 
 ## Supported versions
 
-RepoFrame is currently maintained from the latest default branch. The archived `repo-init` skill is unsupported.
+RepoFrame is maintained from the latest default branch. The archived `repo-init` skill is unsupported.
 
 ## Local viewer security
 
-The RepoFrame viewer is designed for local development:
+RepoFrame is designed for local development:
 
-- it binds only to `127.0.0.1`;
-- it exposes a read-only, validated state endpoint;
-- it serves only packaged, whitelisted browser assets;
-- it rejects state-changing HTTP methods;
-- it does not execute commands or connect to an agent.
+- the server binds only to `127.0.0.1`;
+- browser routes and assets are explicitly allowlisted;
+- all API endpoints are read-only;
+- state-changing HTTP methods are rejected;
+- no endpoint executes arbitrary shell input or controls an Agent;
+- no browser asset connects to an external service.
 
-`.repoframe/state.json` can still contain sensitive project names, constraints, paths, or evidence. Do not expose the viewer through a reverse proxy, tunnel, port-forward, or public network. Treat the state file according to the repository's own confidentiality requirements.
+Iteration invokes a fixed set of read-only Git commands to inspect status, diff statistics, branch, and commit history. Repository paths, branch names, commit subjects, author names, and working-file names are therefore visible to anyone who can access the local Viewer.
+
+Long Run snapshots can additionally contain project names, outcomes, constraints, summaries, file paths, test commands, or commit evidence. Invalid archived snapshots are reported but never executed.
+
+Do not expose RepoFrame through a reverse proxy, tunnel, port forward, container host mapping, or public network. Treat Viewer data according to the repository's confidentiality requirements.
 
 ## Reporting a vulnerability
 
-Use GitHub private vulnerability reporting when available. If it is unavailable, open a minimal public issue requesting a private contact path without including exploit details.
+Use GitHub private vulnerability reporting when available. If unavailable, open a minimal public issue requesting a private contact path without including exploit details.
 
-Include the affected version, impact, reproduction conditions, and any known mitigation. RepoFrame does not currently operate a bug bounty program.
+Include the affected version, mode, impact, reproduction conditions, and known mitigation. RepoFrame does not currently operate a bug bounty program.

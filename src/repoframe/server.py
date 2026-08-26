@@ -1,4 +1,4 @@
-"""Local, read-only HTTP server for the RepoFrame DAG viewer."""
+"""Local, read-only HTTP server for RepoFrame Iteration and Long Run views."""
 
 from __future__ import annotations
 
@@ -10,8 +10,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
-from .state import load_and_validate
+from .git_inspect import GitInspectionError, inspect_repository
+from .state import IDENTIFIER, load_and_validate
 
 
 SECURITY_HEADERS = {
@@ -21,10 +23,10 @@ SECURITY_HEADERS = {
     "Cache-Control": "no-store",
 }
 ASSETS = {
-    "/": ("index.html", "text/html; charset=utf-8"),
     "/assets/app.css": ("app.css", "text/css; charset=utf-8"),
     "/assets/app.js": ("app.js", "text/javascript; charset=utf-8"),
 }
+VIEW_ROUTES = {"/", "/iteration", "/long-run"}
 
 
 class RepoFrameHTTPServer(ThreadingHTTPServer):
@@ -38,8 +40,57 @@ def _json_bytes(payload: Any) -> bytes:
 def _handler_for(repo: Path) -> type[BaseHTTPRequestHandler]:
     state_path = repo / ".repoframe/state.json"
 
+    def goal_states() -> tuple[list[dict[str, Any]], dict[str, tuple[dict[str, Any], bytes]], list[dict[str, str]]]:
+        candidates: list[tuple[Path, str, bool]] = [(state_path, "state.json", True)]
+        goals_dir = repo / ".repoframe/goals"
+        if goals_dir.exists() and goals_dir.is_dir() and goals_dir.resolve().is_relative_to(repo):
+            candidates.extend((path, f"goals/{path.name}", False) for path in sorted(goals_dir.glob("*.json")))
+
+        goals: list[dict[str, Any]] = []
+        states: dict[str, tuple[dict[str, Any], bytes]] = {}
+        problems: list[dict[str, str]] = []
+        for path, source, current in candidates:
+            if not path.exists():
+                continue
+            if not path.resolve().is_relative_to(repo):
+                problems.append(
+                    {"code": "goal.unsafe_path", "path": source, "message": "Goal snapshot resolves outside the repository."}
+                )
+                continue
+            payload, raw, issues = load_and_validate(path)
+            if issues or payload is None or raw is None:
+                problems.extend(
+                    {"code": issue.code, "path": f"{source}:{issue.path}", "message": issue.message}
+                    for issue in issues
+                )
+                continue
+            goal = payload["goal"]
+            goal_id = goal["id"]
+            if goal_id in states:
+                problems.append(
+                    {
+                        "code": "goal.duplicate_id",
+                        "path": source,
+                        "message": f"Goal id '{goal_id}' is already provided by another snapshot.",
+                    }
+                )
+                continue
+            states[goal_id] = (payload, raw)
+            goals.append(
+                {
+                    "id": goal_id,
+                    "title": goal["title"],
+                    "status": goal["status"],
+                    "updated_at": payload["updated_at"],
+                    "source": source,
+                    "current": current,
+                }
+            )
+        goals.sort(key=lambda item: (not item["current"], item["status"] == "done", item["title"].lower()))
+        return goals, states, problems
+
     class Handler(BaseHTTPRequestHandler):
-        server_version = "RepoFrame/0.1"
+        server_version = "RepoFrame/0.2"
 
         def log_message(self, format: str, *args: object) -> None:
             return
@@ -60,8 +111,25 @@ def _handler_for(repo: Path) -> type[BaseHTTPRequestHandler]:
         def _send_json(self, status: int, payload: Any) -> None:
             self._send(status, _json_bytes(payload), "application/json; charset=utf-8")
 
+        def _send_etag_json(self, payload: Any, raw: bytes | None = None) -> None:
+            body = _json_bytes(payload)
+            etag = f'"{hashlib.sha256(raw if raw is not None else body).hexdigest()}"'
+            if self.headers.get("If-None-Match") == etag:
+                self._headers(304, "application/json; charset=utf-8")
+                self.send_header("ETag", etag)
+                self.end_headers()
+                return
+            self._headers(200, "application/json; charset=utf-8", len(body))
+            self.send_header("ETag", etag)
+            self.end_headers()
+            self.wfile.write(body)
+
         def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
             path = self.path.split("?", 1)[0]
+            if path in VIEW_ROUTES or (path.startswith("/long-run/") and IDENTIFIER.fullmatch(unquote(path[10:]))):
+                body = resources.files("repoframe.web").joinpath("index.html").read_bytes()
+                self._send(200, body, "text/html; charset=utf-8")
+                return
             if path in ASSETS:
                 filename, content_type = ASSETS[path]
                 body = resources.files("repoframe.web").joinpath(filename).read_bytes()
@@ -77,7 +145,37 @@ def _handler_for(repo: Path) -> type[BaseHTTPRequestHandler]:
             if path == "/api/v1/state":
                 self._state_response()
                 return
+            if path == "/api/v1/iteration":
+                self._iteration_response()
+                return
+            if path == "/api/v1/goals":
+                goals, _, issues = goal_states()
+                self._send_etag_json({"goals": goals, "issues": issues})
+                return
+            if path.startswith("/api/v1/goals/"):
+                self._goal_response(unquote(path[len("/api/v1/goals/") :]))
+                return
             self._send_json(404, {"error": "not_found"})
+
+        def _iteration_response(self) -> None:
+            try:
+                payload = inspect_repository(repo)
+            except GitInspectionError as exc:
+                self._send_json(409, {"error": "git_unavailable", "message": str(exc)})
+                return
+            self._send_etag_json(payload)
+
+        def _goal_response(self, goal_id: str) -> None:
+            if not IDENTIFIER.fullmatch(goal_id):
+                self._send_json(404, {"error": "goal_not_found"})
+                return
+            _, states, _ = goal_states()
+            state = states.get(goal_id)
+            if state is None:
+                self._send_json(404, {"error": "goal_not_found"})
+                return
+            payload, raw = state
+            self._send_etag_json(payload, raw)
 
         def _state_response(self) -> None:
             payload, raw, issues = load_and_validate(state_path)
@@ -88,17 +186,7 @@ def _handler_for(repo: Path) -> type[BaseHTTPRequestHandler]:
                 self._send_json(422, {"error": "invalid_state", "issues": [issue.to_dict() for issue in issues]})
                 return
             assert payload is not None and raw is not None
-            etag = f'"{hashlib.sha256(raw).hexdigest()}"'
-            if self.headers.get("If-None-Match") == etag:
-                self._headers(304, "application/json; charset=utf-8")
-                self.send_header("ETag", etag)
-                self.end_headers()
-                return
-            body = _json_bytes(payload)
-            self._headers(200, "application/json; charset=utf-8", len(body))
-            self.send_header("ETag", etag)
-            self.end_headers()
-            self.wfile.write(body)
+            self._send_etag_json(payload, raw)
 
         def _method_not_allowed(self) -> None:
             body = _json_bytes({"error": "method_not_allowed"})

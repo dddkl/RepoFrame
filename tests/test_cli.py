@@ -47,11 +47,28 @@ class CliTests(unittest.TestCase):
         self.assertIn("RepoFrame initialized", stdout)
         self.assertEqual(["Tests pass", "Review passes"], payload["goal"]["success_criteria"])
 
-    def test_init_without_goal_in_new_repo_is_usage_error(self) -> None:
+    def test_init_without_goal_creates_iteration_setup(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            code, _, stderr = invoke(["init", "--agents", "none"], Path(temp_dir))
+            repo = Path(temp_dir)
+            code, stdout, stderr = invoke(["init", "--agents", "none"], repo)
+            state_exists = (repo / ".repoframe/state.json").exists()
+            instructions_exist = (repo / ".repoframe/instructions.md").exists()
+        self.assertEqual(0, code, stderr)
+        self.assertFalse(state_exists)
+        self.assertTrue(instructions_exist)
+        self.assertIn("Iteration", stdout)
+
+    def test_init_goal_fields_without_goal_are_usage_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, stderr = invoke(["init", "--criterion", "Tests pass"], Path(temp_dir))
         self.assertEqual(2, code)
         self.assertIn("--goal", stderr)
+
+    def test_blank_goal_is_usage_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, stderr = invoke(["init", "--goal", "   "], Path(temp_dir))
+        self.assertEqual(2, code)
+        self.assertIn("cannot be empty", stderr)
 
     def test_validate_reports_valid_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -89,7 +106,7 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             code, stdout, stderr = invoke(["--version"], Path(temp_dir))
         self.assertEqual(0, code, stderr)
-        self.assertEqual("repoframe 0.1.0", stdout.strip())
+        self.assertEqual("repoframe 0.2.0", stdout.strip())
 
 
 if __name__ == "__main__":

@@ -29,6 +29,9 @@ class InitializationTests(unittest.TestCase):
             self.assertTrue((repo / ".repoframe/state.schema.json").exists())
             self.assertTrue((repo / ".repoframe/instructions.md").exists())
             self.assertTrue((repo / "AGENTS.md").exists())
+            instructions = (repo / ".repoframe/instructions.md").read_text(encoding="utf-8")
+            self.assertIn("Do not create, read, or update `.repoframe/state.json` for Iteration", instructions)
+            self.assertIn("Long Run", instructions)
             self.assertIn("created", {change.action for change in changes})
 
     def test_none_does_not_create_agent_files(self) -> None:
@@ -97,10 +100,24 @@ class InitializationTests(unittest.TestCase):
             with self.assertRaisesRegex(InitializationError, "different goal"):
                 initialize(repo, "Ship billing", None, [], [], "none")
 
-    def test_new_repository_requires_goal(self) -> None:
+    def test_iteration_initialization_does_not_create_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            changes = initialize(repo, None, None, [], [], "none")
+            self.assertFalse((repo / ".repoframe/state.json").exists())
+            self.assertTrue((repo / ".repoframe/state.schema.json").exists())
+            self.assertTrue((repo / ".repoframe/instructions.md").exists())
+            self.assertNotIn(Path(".repoframe/state.json"), [change.path for change in changes])
+
+    def test_iteration_rejects_goal_fields_without_goal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaisesRegex(InitializationError, "--goal"):
-                initialize(Path(temp_dir), None, None, [], [], "none")
+                initialize(Path(temp_dir), None, "Outcome", [], [], "none")
+
+    def test_blank_goal_is_not_treated_as_iteration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(InitializationError, "cannot be empty"):
+                initialize(Path(temp_dir), "   ", None, [], [], "none")
 
     def test_malformed_managed_markers_prevent_all_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

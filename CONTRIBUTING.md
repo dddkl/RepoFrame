@@ -1,27 +1,24 @@
 # Contributing
 
-RepoFrame is intentionally small. Contributions should preserve its role as an agent-agnostic state protocol and local visualization tool rather than adding workflow policy.
+RepoFrame is intentionally small. Contributions must preserve its two product semantics:
+
+> Iteration observes development. Long Run models execution.
 
 ## Prerequisites
 
 - Python 3.10 or newer
-- No third-party runtime dependencies
+- Git
+- no third-party runtime dependencies
 
-Create a local editable installation when needed:
+For local development:
 
 ```bash
 python -m pip install -e .
-```
-
-## Validate changes
-
-Run the complete standard-library test suite:
-
-```bash
 python -m unittest discover -s tests -v
+python -m compileall -q src tests
 ```
 
-Build and install the package when changing packaging or resources:
+When package metadata or resources change:
 
 ```bash
 python -m pip install build
@@ -30,29 +27,41 @@ python -m pip install --force-reinstall dist/*.whl
 repoframe --version
 ```
 
-For viewer changes, initialize a temporary repository with a branching DAG, run `repoframe view`, and inspect the active, done, blocked, pending, and skipped states at desktop and narrow widths.
+## Mode boundaries
+
+Iteration must remain usable without `.repoframe/state.json`. Its API reads current Git facts and must not stage, commit, reset, check out, write repository files, or duplicate activity into RepoFrame storage. Avoid adding semantic fields that an Agent would need to keep current during a fast conversation.
+
+Long Run may use explicit execution state, but only for a Goal and meaningful DAG stages. It must not grow owners, deadlines, priority queues, percentages, private reasoning, chat transcripts, or orchestration policy.
+
+The two modes may share visual components and the loopback server, but not their state assumptions. Tests should prove that Iteration works in a Git repository with no state file.
 
 ## Protocol changes
 
-`src/repoframe/resources/state.schema.json` is the public structural contract. The Python validator adds semantic DAG checks that JSON Schema cannot express conveniently.
+`src/repoframe/resources/state.schema.json` is the Long Run structural contract. The Python validator adds semantic DAG checks.
 
-When changing the protocol:
+When changing it:
 
-- keep the packaged Schema and Python validator aligned;
-- add tests that fail before the implementation change;
+- keep packaged Schema, Python validation, and tests aligned;
 - do not reinterpret an existing `schema_version` incompatibly;
-- reject unknown fields instead of letting state grow into an unbounded log;
-- keep `state.json` the only execution-state source of truth.
+- reject unknown fields;
+- do not add a mode to each Goal or Node;
+- keep each snapshot independent and limited to one Goal;
+- let Git provide history and recovery rather than adding an event log.
 
-## Product boundaries
+## Viewer and API changes
 
-- Prefer the Python standard library and bundled browser assets.
-- Do not add a framework for a behavior that can remain a small function.
-- Keep agent adapters thin and semantically identical.
-- Preserve user-authored content outside RepoFrame managed markers.
-- Treat the viewer as read-only until a separately designed intent API exists.
-- Do not record private model reasoning, chat history, or per-save activity.
+- Bind only to `127.0.0.1`.
+- Keep routes and packaged assets on explicit allowlists.
+- Keep browser endpoints read-only until a separately designed intent API exists.
+- Escape project data through DOM text APIs; do not build executable markup from repository content.
+- Preserve ETag behavior and invalid-state recovery.
+- Keep Iteration Git commands fixed and read-only.
+- Respect `prefers-reduced-motion` and avoid status meaning that depends only on color.
+
+## Agent adapters
+
+Adapters must remain thin and semantically identical. Preserve user-authored content outside RepoFrame markers. Iteration instructions must not imply state maintenance; Long Run instructions should only require updates at meaningful boundaries.
 
 ## Pull requests
 
-Describe the user-visible behavior, protocol compatibility impact, and exact verification commands. Changes to the Schema, validation semantics, adapter discovery, local HTTP boundary, or package data should be called out explicitly.
+Describe the user-visible mode, protocol compatibility impact, exact commands run, and any effect on Git inspection, state validation, adapter files, loopback security, or packaged resources.

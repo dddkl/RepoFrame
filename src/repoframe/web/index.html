@@ -8,9 +8,11 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="RepoFrame home">
-      <span>RepoFrame</span>
-    </a>
+    <a class="brand" href="/iteration" aria-label="RepoFrame Iteration">RepoFrame</a>
+    <nav class="mode-nav" aria-label="RepoFrame mode">
+      <a id="iteration-nav" href="/iteration">Iteration</a>
+      <a id="long-run-nav" href="/long-run">Long Run</a>
+    </nav>
     <div id="connection" class="connection" data-state="loading">
       <span class="connection-dot" aria-hidden="true"></span>
       <span id="connection-label">Connecting</span>
@@ -18,27 +20,79 @@
   </header>
 
   <main>
-    <section id="diagnostics" class="diagnostics" hidden aria-live="polite">
-      <p class="eyebrow">State needs attention</p>
-      <h2 id="diagnostic-title">RepoFrame cannot render the current snapshot.</h2>
-      <ul id="issue-list"></ul>
-    </section>
+    <section id="iteration-view" class="iteration-view" hidden aria-labelledby="iteration-title">
+      <div class="iteration-shell">
+        <header class="iteration-heading">
+          <div>
+            <p class="eyebrow">Iteration observes development</p>
+            <h1 id="iteration-title">Working tree</h1>
+          </div>
+          <div class="repo-identity">
+            <span id="repository-name">Repository</span>
+            <code id="branch-name">—</code>
+          </div>
+        </header>
 
-    <section class="workspace" aria-label="Execution graph">
-      <div class="graph-header">
-        <div>
-          <p class="eyebrow">Execution path</p>
-          <h2>Goal DAG</h2>
+        <section id="iteration-error" class="inline-error" hidden aria-live="polite"></section>
+
+        <div class="iteration-grid">
+          <article class="surface changes-surface">
+            <div class="surface-heading">
+              <div>
+                <p class="eyebrow">Working changes</p>
+                <h2 id="change-summary">Inspecting Git…</h2>
+              </div>
+              <span id="working-status" class="plain-status">—</span>
+            </div>
+            <div class="change-metrics" aria-label="Working change statistics">
+              <span><strong id="changed-files">0</strong> files</span>
+              <span class="addition">+<strong id="additions">0</strong></span>
+              <span class="deletion">−<strong id="deletions">0</strong></span>
+            </div>
+            <ul id="working-files" class="file-list"></ul>
+            <p id="clean-message" class="quiet-empty" hidden>Working tree is clean.</p>
+          </article>
+
+          <article class="surface latest-surface">
+            <p class="eyebrow">Latest commit</p>
+            <div id="latest-commit" class="latest-commit"></div>
+          </article>
+
+          <article class="surface activity-surface">
+            <div class="surface-heading">
+              <div>
+                <p class="eyebrow">Recent activity</p>
+                <h2>Commit history</h2>
+              </div>
+            </div>
+            <ol id="recent-commits" class="commit-list"></ol>
+          </article>
         </div>
       </div>
-      <div id="empty-state" class="empty-state" hidden>
-        <span aria-hidden="true">◇</span>
-        <h3>Waiting for the agent to establish an execution path</h3>
-        <p>The goal is valid. Nodes will appear here when meaningful stages are identified.</p>
-      </div>
-      <div id="graph-scroll" class="graph-scroll">
-        <svg id="graph" role="img" aria-label="Directed acyclic graph of execution stages"></svg>
-      </div>
+    </section>
+
+    <section id="long-run-view" class="long-run-view" hidden aria-label="Long Run execution state">
+      <section id="diagnostics" class="diagnostics" hidden aria-live="polite">
+        <p class="eyebrow">State needs attention</p>
+        <h2 id="diagnostic-title">RepoFrame cannot render the current snapshot.</h2>
+        <ul id="issue-list"></ul>
+      </section>
+
+      <section class="workspace" aria-label="Execution graph">
+        <div class="graph-header">
+          <label class="eyebrow" for="goal-select">Execution path</label>
+          <select id="goal-select" aria-label="Select Long Run goal"></select>
+          <p id="goal-outcome" class="goal-outcome"></p>
+        </div>
+        <div id="empty-state" class="empty-state" hidden>
+          <span aria-hidden="true">◇</span>
+          <h2 id="empty-title">No Long Run goal</h2>
+          <p id="empty-copy">Create one with <code>repoframe init --goal "…"</code>.</p>
+        </div>
+        <div id="graph-scroll" class="graph-scroll">
+          <svg id="graph" role="img" aria-label="Directed acyclic graph of execution stages"></svg>
+        </div>
+      </section>
     </section>
   </main>
 

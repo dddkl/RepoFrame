@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://repoframe.dev/schema/state-v1.json",
-  "title": "RepoFrame execution state v1",
+  "title": "RepoFrame Long Run execution state v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "schema_version", "goal", "nodes", "updated_at"],

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "repoframe"
-version = "0.1.0"
-description = "Agent-agnostic execution state and a local DAG viewer"
+version = "0.2.0"
+description = "Git-observed iteration and resumable Long Run execution state for coding agents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

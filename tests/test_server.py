@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import threading
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from repoframe.initialize import initialize
 from repoframe.server import create_server, run_viewer
+from repoframe.state import new_state
 
 
 class RunningServer:
@@ -36,6 +38,15 @@ def fetch(url: str, *, headers: dict[str, str] | None = None, method: str = "GET
     return urlopen(Request(url, headers=headers or {}, method=method), timeout=2)
 
 
+def initialize_git(repo: Path) -> None:
+    subprocess.run(["git", "-C", str(repo), "init"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "RepoFrame Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "repoframe@example.test"], check=True)
+    (repo / "README.md").write_text("# Test\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "Initial commit"], check=True, capture_output=True)
+
+
 class ServerTests(unittest.TestCase):
     def test_serves_viewer_assets_and_security_headers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -45,16 +56,21 @@ class ServerTests(unittest.TestCase):
                 with fetch(base + "/") as response:
                     html = response.read().decode("utf-8")
                     self.assertEqual("text/html; charset=utf-8", response.headers["Content-Type"])
+                    self.assertTrue(response.headers["Server"].startswith("RepoFrame/0.2"))
                     self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
                     self.assertIn("RepoFrame", html)
+                with fetch(base + "/iteration") as response:
+                    self.assertIn(b"Iteration observes development", response.read())
+                with fetch(base + "/long-run/ship-auth") as response:
+                    self.assertIn(b"Execution path", response.read())
                 with fetch(base + "/assets/app.css") as response:
                     self.assertEqual("text/css; charset=utf-8", response.headers["Content-Type"])
                     self.assertIn(b"prefers-reduced-motion", response.read())
                 with fetch(base + "/assets/app.js") as response:
                     self.assertIn("javascript", response.headers["Content-Type"])
                     script = response.read()
-                    self.assertIn(b"/api/v1/state", script)
-                    self.assertIn(b"last valid snapshot", script)
+                    self.assertIn(b"/api/v1/iteration", script)
+                    self.assertIn(b"/api/v1/goals", script)
                 with fetch(base + "/favicon.ico") as response:
                     self.assertEqual(204, response.status)
 
@@ -124,6 +140,78 @@ class ServerTests(unittest.TestCase):
             self.assertEqual(404, caught.exception.code)
             self.assertEqual("state_not_found", payload["error"])
 
+    def test_iteration_endpoint_works_without_repoframe_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize_git(repo)
+            initialize(repo, None, None, [], [], "none")
+            self.assertFalse((repo / ".repoframe/state.json").exists())
+            (repo / "README.md").write_text("# Changed\n", encoding="utf-8")
+            with RunningServer(repo) as base:
+                with fetch(base + "/api/v1/iteration") as response:
+                    payload = json.loads(response.read())
+                    etag = response.headers["ETag"]
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(base + "/api/v1/iteration", headers={"If-None-Match": etag})
+            self.assertEqual(304, caught.exception.code)
+            self.assertEqual(3, payload["working_changes"]["changed_files"])
+            paths = {item["path"] for item in payload["working_changes"]["files"]}
+            self.assertEqual(
+                {"README.md", ".repoframe/instructions.md", ".repoframe/state.schema.json"},
+                paths,
+            )
+            self.assertEqual("Initial commit", payload["latest_commit"]["subject"])
+
+    def test_iteration_endpoint_rejects_non_git_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with RunningServer(Path(temp_dir)) as base:
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(base + "/api/v1/iteration")
+                payload = json.loads(caught.exception.read())
+            self.assertEqual(409, caught.exception.code)
+            self.assertEqual("git_unavailable", payload["error"])
+
+    def test_goal_list_is_empty_when_iteration_has_no_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize(repo, None, None, [], [], "none")
+            with RunningServer(repo) as base:
+                with fetch(base + "/api/v1/goals") as response:
+                    payload = json.loads(response.read())
+            self.assertEqual([], payload["goals"])
+            self.assertEqual([], payload["issues"])
+
+    def test_goal_list_and_independent_goal_endpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize(repo, "Ship auth", None, [], [], "none")
+            archive = new_state("Retire password login", None, [], [])
+            archive["goal"]["status"] = "done"
+            goals_dir = repo / ".repoframe/goals"
+            goals_dir.mkdir()
+            (goals_dir / "retired.json").write_text(json.dumps(archive), encoding="utf-8")
+            with RunningServer(repo) as base:
+                with fetch(base + "/api/v1/goals") as response:
+                    listing = json.loads(response.read())
+                with fetch(base + "/api/v1/goals/retire-password-login") as response:
+                    archived = json.loads(response.read())
+            self.assertEqual(["ship-auth", "retire-password-login"], [goal["id"] for goal in listing["goals"]])
+            self.assertTrue(listing["goals"][0]["current"])
+            self.assertEqual("Retire password login", archived["goal"]["title"])
+
+    def test_invalid_goal_snapshot_is_reported_without_breaking_valid_goals(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize(repo, "Ship auth", None, [], [], "none")
+            goals_dir = repo / ".repoframe/goals"
+            goals_dir.mkdir()
+            (goals_dir / "broken.json").write_text("{", encoding="utf-8")
+            with RunningServer(repo) as base:
+                with fetch(base + "/api/v1/goals") as response:
+                    listing = json.loads(response.read())
+            self.assertEqual(["ship-auth"], [goal["id"] for goal in listing["goals"]])
+            self.assertEqual("json.invalid", listing["issues"][0]["code"])
+
     def test_health_unknown_routes_write_methods_and_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = Path(temp_dir)
@@ -132,7 +220,7 @@ class ServerTests(unittest.TestCase):
             with RunningServer(repo) as base:
                 with fetch(base + "/healthz") as response:
                     self.assertEqual({"status": "ok"}, json.loads(response.read()))
-                for path in ("/unknown", "/assets/../secret.txt", "/secret.txt"):
+                for path in ("/unknown", "/assets/../secret.txt", "/secret.txt", "/api/v1/goals/INVALID"):
                     with self.assertRaises(HTTPError) as caught:
                         fetch(base + path)
                     self.assertEqual(404, caught.exception.code)

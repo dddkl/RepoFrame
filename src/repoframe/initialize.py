@@ -17,11 +17,10 @@ END_MARKER = "<!-- repoframe:end -->"
 MANAGED_BLOCK = """<!-- repoframe:start -->
 ## RepoFrame
 
-Before starting or resuming multi-step work, read
-`.repoframe/state.json` and `.repoframe/instructions.md`.
+Read `.repoframe/instructions.md` to choose the RepoFrame mode.
 
-Keep the RepoFrame DAG aligned with meaningful execution-state changes.
-Run `repoframe validate` after updating it.
+Iteration uses Git directly and does not maintain execution state.
+Long Run reads and updates `.repoframe/state.json` only at meaningful stages.
 <!-- repoframe:end -->
 """
 AGENT_PATHS = {
@@ -151,6 +150,8 @@ def initialize(
     repo = repo.resolve()
     if not repo.exists() or not repo.is_dir():
         raise InitializationError(f"Repository directory does not exist: {repo}")
+    if goal is not None and not goal.strip():
+        raise InitializationError("--goal cannot be empty.")
     adapter_paths = _selected_adapter_paths(repo, agents)
     state_relative = Path(".repoframe/state.json")
     managed_paths = [
@@ -176,15 +177,15 @@ def initialize(
                 f"Existing state belongs to a different goal ('{existing_title}'); it was not replaced."
             )
         changes.append(Change(state_relative, "preserved"))
-    else:
-        if goal is None or not goal.strip():
-            raise InitializationError("--goal is required when creating a new RepoFrame state.")
+    elif goal is not None:
         payload = new_state(goal.strip(), outcome, criteria, constraints)
         state_issues = validate_state(payload)
         if state_issues:
             details = "; ".join(f"{issue.path}: {issue.message}" for issue in state_issues)
             raise InitializationError(f"New state fields are invalid: {details}")
         planned[state_relative] = (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+    elif outcome is not None or criteria or constraints:
+        raise InitializationError("--goal is required when outcome, criteria, or constraints are provided.")
 
     managed_resources = {
         Path(".repoframe/state.schema.json"): _resource_text("state.schema.json").encode("utf-8"),

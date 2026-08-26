@@ -47,5 +47,6 @@ jobs:
           python -m pip install --force-reinstall dist/*.whl
           cd "$(mktemp -d)"
           repoframe --version
+          repoframe init --agents none
           repoframe init --goal "Package smoke" --agents none
           repoframe validate

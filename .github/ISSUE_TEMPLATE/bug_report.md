@@ -13,9 +13,10 @@ Describe the problem in one or two sentences.
 ## Reproduction
 
 1. Command or workflow used:
-2. Relevant `.repoframe/state.json` excerpt:
-3. Expected behavior:
-4. Actual behavior:
+2. Mode (`Iteration` or `Long Run`):
+3. Relevant Git state or `.repoframe/state.json` excerpt:
+4. Expected behavior:
+5. Actual behavior:
 
 ## Environment
 

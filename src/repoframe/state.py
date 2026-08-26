@@ -1,4 +1,4 @@
-"""RepoFrame state creation, loading, and validation."""
+"""RepoFrame Long Run state creation, loading, and validation."""
 
 from __future__ import annotations
 
