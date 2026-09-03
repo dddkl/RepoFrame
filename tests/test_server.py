@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,13 +16,14 @@ from urllib.request import Request, urlopen
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from repoframe.initialize import initialize
+from repoframe.operations import OperationManager
 from repoframe.server import create_server, run_viewer
 from repoframe.state import new_state
 
 
 class RunningServer:
-    def __init__(self, repo: Path):
-        self.server = create_server(repo, 0)
+    def __init__(self, repo: Path, *, interactive: bool = False, manager: OperationManager | None = None):
+        self.server = create_server(repo, 0, interactive=interactive, manager=manager)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
     def __enter__(self) -> str:
@@ -30,12 +32,56 @@ class RunningServer:
 
     def __exit__(self, *args: object) -> None:
         self.server.shutdown()
+        self.server.manager.close()
         self.server.server_close()
         self.thread.join(timeout=2)
 
 
-def fetch(url: str, *, headers: dict[str, str] | None = None, method: str = "GET"):
-    return urlopen(Request(url, headers=headers or {}, method=method), timeout=2)
+def fetch(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+    method: str = "GET",
+    body: object | None = None,
+):
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    request_headers = dict(headers or {})
+    if body is not None:
+        request_headers["Content-Type"] = "application/json"
+    return urlopen(Request(url, headers=request_headers, data=data, method=method), timeout=2)
+
+
+def interactive_headers(base: str) -> dict[str, str]:
+    with fetch(base + "/") as response:
+        html = response.read().decode("utf-8")
+    match = re.search(r'<meta name="repoframe-token" content="([^"]+)">', html)
+    if not match:
+        raise AssertionError("interactive session token not found")
+    return {"Origin": base, "X-RepoFrame-Token": match.group(1)}
+
+
+class ServerFakeProvider:
+    name = "codex"
+    available = True
+
+    def generate_commit(self, repo: Path, inspection: dict) -> dict:
+        return {"subject": "test: server proposal", "body": "", "summary": "Prepared."}
+
+    def triage_intervention(self, repo: Path, state: dict, intervention: dict) -> dict:
+        return {
+            "route": "needs_user",
+            "summary": "More input.",
+            "analysis_requests": [],
+        }
+
+    def analyze(self, repo: Path, request: dict) -> dict:
+        return {"summary": "Done.", "findings": []}
+
+    def finalize_intervention(self, repo: Path, state: dict, intervention: dict, analyses: list, validation_issues=None):
+        raise AssertionError("not expected")
+
+    def cancel(self) -> None:
+        return
 
 
 def initialize_git(repo: Path) -> None:
@@ -56,21 +102,31 @@ class ServerTests(unittest.TestCase):
                 with fetch(base + "/") as response:
                     html = response.read().decode("utf-8")
                     self.assertEqual("text/html; charset=utf-8", response.headers["Content-Type"])
-                    self.assertTrue(response.headers["Server"].startswith("RepoFrame/0.2"))
+                    self.assertTrue(response.headers["Server"].startswith("RepoFrame/0.3"))
                     self.assertIn("default-src 'self'", response.headers["Content-Security-Policy"])
                     self.assertIn("RepoFrame", html)
+                    self.assertIn("iteration-card", html)
                 with fetch(base + "/iteration") as response:
-                    self.assertIn(b"Iteration observes development", response.read())
+                    self.assertEqual(base + "/", response.url)
+                    self.assertIn(b"Iteration", response.read())
                 with fetch(base + "/long-run/ship-auth") as response:
                     self.assertIn(b"Execution path", response.read())
                 with fetch(base + "/assets/app.css") as response:
                     self.assertEqual("text/css; charset=utf-8", response.headers["Content-Type"])
-                    self.assertIn(b"prefers-reduced-motion", response.read())
+                    stylesheet = response.read()
+                    self.assertIn(b"prefers-reduced-motion", stylesheet)
+                    self.assertIn(b"top: calc(50% + var(--bar-height) / 2)", stylesheet)
+                    self.assertIn(b".goal-menu", stylesheet)
+                    self.assertNotIn(b".iteration-card.is-minimized", stylesheet)
                 with fetch(base + "/assets/app.js") as response:
                     self.assertIn("javascript", response.headers["Content-Type"])
                     script = response.read()
                     self.assertIn(b"/api/v1/iteration", script)
                     self.assertIn(b"/api/v1/goals", script)
+                    self.assertIn(b"/api/v1/operations", script)
+                    self.assertIn(b"setGoalMenuOpen", script)
+                    self.assertIn(b'addEventListener("wheel"', script)
+                    self.assertNotIn(b"setIterationMinimized", script)
                 with fetch(base + "/favicon.ico") as response:
                     self.assertEqual(204, response.status)
 
@@ -227,6 +283,99 @@ class ServerTests(unittest.TestCase):
                 with self.assertRaises(HTTPError) as caught:
                     fetch(base + "/api/v1/state", method="POST")
                 self.assertEqual(405, caught.exception.code)
+
+    def test_runtime_is_read_only_in_view_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize_git(repo)
+            initialize(repo, None, None, [], [], "none")
+            with RunningServer(repo) as base:
+                with fetch(base + "/api/v1/runtime") as response:
+                    runtime = json.loads(response.read())
+                self.assertFalse(runtime["interactive"])
+                self.assertEqual("iteration", runtime["mode"])
+                self.assertFalse(runtime["capabilities"]["commit"])
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(base + "/api/v1/mode", method="POST", body={"mode": "long-run"})
+                self.assertEqual(405, caught.exception.code)
+
+    def test_interactive_api_requires_origin_host_and_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize_git(repo)
+            initialize(repo, None, None, [], [], "none")
+            manager = OperationManager(repo, provider=ServerFakeProvider(), recover_interrupted=False)
+            with RunningServer(repo, interactive=True, manager=manager) as base:
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(base + "/api/v1/mode", method="POST", body={"mode": "long-run"})
+                self.assertEqual(403, caught.exception.code)
+                headers = interactive_headers(base)
+                with fetch(
+                    base + "/api/v1/mode",
+                    headers=headers,
+                    method="POST",
+                    body={"mode": "long-run"},
+                ) as response:
+                    self.assertEqual({"mode": "long-run"}, json.loads(response.read()))
+                with fetch(base + "/api/v1/runtime") as response:
+                    self.assertEqual("long-run", json.loads(response.read())["mode"])
+
+    def test_interactive_api_rejects_bad_token_and_oversized_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize_git(repo)
+            initialize(repo, None, None, [], [], "none")
+            manager = OperationManager(repo, provider=ServerFakeProvider(), recover_interrupted=False)
+            with RunningServer(repo, interactive=True, manager=manager) as base:
+                headers = interactive_headers(base)
+                bad_headers = {**headers, "X-RepoFrame-Token": "not-the-session-token"}
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(
+                        base + "/api/v1/mode",
+                        headers=bad_headers,
+                        method="POST",
+                        body={"mode": "long-run"},
+                    )
+                self.assertEqual(403, caught.exception.code)
+
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(
+                        base + "/api/v1/operations",
+                        headers=headers,
+                        method="POST",
+                        body={"type": "git.prepare_commit", "payload": {"intent": "x" * 17_000}},
+                    )
+                self.assertEqual(413, caught.exception.code)
+
+                with self.assertRaises(HTTPError) as caught:
+                    fetch(base + "/api/v1/not-a-route", headers=headers, method="POST", body={})
+                self.assertEqual(404, caught.exception.code)
+
+    def test_interactive_operation_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            initialize_git(repo)
+            initialize(repo, None, None, [], [], "none")
+            (repo / "README.md").write_text("# Changed\n", encoding="utf-8")
+            manager = OperationManager(repo, provider=ServerFakeProvider(), recover_interrupted=False)
+            with RunningServer(repo, interactive=True, manager=manager) as base:
+                headers = interactive_headers(base)
+                with fetch(
+                    base + "/api/v1/operations",
+                    headers=headers,
+                    method="POST",
+                    body={"type": "git.prepare_commit", "payload": {"intent": "commit"}},
+                ) as response:
+                    started = json.loads(response.read())
+                    self.assertEqual(202, response.status)
+                for _ in range(100):
+                    with fetch(base + f"/api/v1/operations/{started['id']}") as response:
+                        operation = json.loads(response.read())
+                    if operation["status"] not in {"queued", "running"}:
+                        break
+                    threading.Event().wait(0.01)
+                self.assertEqual("completed", operation["status"])
+                self.assertEqual("test: server proposal", operation["result"]["subject"])
 
 
 class ViewerRunnerTests(unittest.TestCase):

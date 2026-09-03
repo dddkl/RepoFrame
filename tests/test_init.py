@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +17,27 @@ from repoframe.state import load_and_validate
 
 
 class InitializationTests(unittest.TestCase):
+    def test_git_initialization_sets_repository_local_mode_without_dirty_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            subprocess.run(["git", "-C", str(repo), "init"], check=True, capture_output=True)
+            initialize(repo, None, None, [], [], "none")
+            mode = subprocess.run(
+                ["git", "-C", str(repo), "config", "--local", "--get", "repoframe.mode"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual("iteration", mode)
+            initialize(repo, "Ship auth", None, [], [], "none")
+            mode = subprocess.run(
+                ["git", "-C", str(repo), "config", "--local", "--get", "repoframe.mode"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual("long-run", mode)
+
     def test_initializes_core_files_and_falls_back_to_agents(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = Path(temp_dir)
@@ -30,8 +52,9 @@ class InitializationTests(unittest.TestCase):
             self.assertTrue((repo / ".repoframe/instructions.md").exists())
             self.assertTrue((repo / "AGENTS.md").exists())
             instructions = (repo / ".repoframe/instructions.md").read_text(encoding="utf-8")
-            self.assertIn("Do not create, read, or update `.repoframe/state.json` for Iteration", instructions)
+            self.assertIn("Do not create, read, or update execution state", instructions)
             self.assertIn("Long Run", instructions)
+            self.assertEqual(2, payload["schema_version"])
             self.assertIn("created", {change.action for change in changes})
 
     def test_none_does_not_create_agent_files(self) -> None:

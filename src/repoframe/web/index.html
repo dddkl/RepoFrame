@@ -3,114 +3,154 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="repoframe-token" content="__REPOFRAME_TOKEN__">
   <title>RepoFrame</title>
   <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/iteration" aria-label="RepoFrame Iteration">RepoFrame</a>
-    <nav class="mode-nav" aria-label="RepoFrame mode">
-      <a id="iteration-nav" href="/iteration">Iteration</a>
-      <a id="long-run-nav" href="/long-run">Long Run</a>
-    </nav>
+    <a class="brand" href="/" aria-label="RepoFrame home">RepoFrame</a>
+    <div class="mode-switch" role="group" aria-label="RepoFrame mode">
+      <button id="iteration-mode" type="button">Iteration</button>
+      <button id="long-run-mode" type="button">Long Run</button>
+    </div>
     <div id="connection" class="connection" data-state="loading">
       <span class="connection-dot" aria-hidden="true"></span>
       <span id="connection-label">Connecting</span>
     </div>
   </header>
 
-  <main>
-    <section id="iteration-view" class="iteration-view" hidden aria-labelledby="iteration-title">
-      <div class="iteration-shell">
-        <header class="iteration-heading">
-          <div>
-            <p class="eyebrow">Iteration observes development</p>
-            <h1 id="iteration-title">Working tree</h1>
-          </div>
-          <div class="repo-identity">
-            <span id="repository-name">Repository</span>
-            <code id="branch-name">—</code>
-          </div>
-        </header>
-
-        <section id="iteration-error" class="inline-error" hidden aria-live="polite"></section>
-
-        <div class="iteration-grid">
-          <article class="surface changes-surface">
-            <div class="surface-heading">
-              <div>
-                <p class="eyebrow">Working changes</p>
-                <h2 id="change-summary">Inspecting Git…</h2>
-              </div>
-              <span id="working-status" class="plain-status">—</span>
-            </div>
-            <div class="change-metrics" aria-label="Working change statistics">
-              <span><strong id="changed-files">0</strong> files</span>
-              <span class="addition">+<strong id="additions">0</strong></span>
-              <span class="deletion">−<strong id="deletions">0</strong></span>
-            </div>
-            <ul id="working-files" class="file-list"></ul>
-            <p id="clean-message" class="quiet-empty" hidden>Working tree is clean.</p>
-          </article>
-
-          <article class="surface latest-surface">
-            <p class="eyebrow">Latest commit</p>
-            <div id="latest-commit" class="latest-commit"></div>
-          </article>
-
-          <article class="surface activity-surface">
-            <div class="surface-heading">
-              <div>
-                <p class="eyebrow">Recent activity</p>
-                <h2>Commit history</h2>
-              </div>
-            </div>
-            <ol id="recent-commits" class="commit-list"></ol>
-          </article>
+  <main class="workspace" aria-label="RepoFrame workbench">
+    <div id="canvas-shell" class="canvas-shell">
+      <section id="graph-header" class="graph-header" aria-label="Execution path navigation">
+        <span id="goal-select-label" class="control-label">Execution path</span>
+        <div id="goal-picker" class="goal-picker">
+          <button
+            id="goal-select"
+            class="goal-select"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-labelledby="goal-select-label goal-select-value"
+          >
+            <span id="goal-select-value">No execution paths</span>
+            <span class="goal-select-chevron" aria-hidden="true"></span>
+          </button>
+          <div id="goal-menu" class="goal-menu" role="listbox" aria-labelledby="goal-select-label" hidden></div>
         </div>
-      </div>
-    </section>
+        <p id="goal-outcome" class="goal-outcome"></p>
+        <div id="graph-view-controls" class="view-controls" role="group" aria-label="Graph detail" hidden>
+          <button id="focus-view" type="button" aria-pressed="true">Focus</button>
+          <button id="full-view" type="button" aria-pressed="false">Full graph</button>
+        </div>
+      </section>
 
-    <section id="long-run-view" class="long-run-view" hidden aria-label="Long Run execution state">
       <section id="diagnostics" class="diagnostics" hidden aria-live="polite">
-        <p class="eyebrow">State needs attention</p>
-        <h2 id="diagnostic-title">RepoFrame cannot render the current snapshot.</h2>
+        <h2 id="diagnostic-title">State needs attention</h2>
         <ul id="issue-list"></ul>
       </section>
 
-      <section class="workspace" aria-label="Execution graph">
-        <div class="graph-header">
-          <label class="eyebrow" for="goal-select">Execution path</label>
-          <select id="goal-select" aria-label="Select Long Run goal"></select>
-          <p id="goal-outcome" class="goal-outcome"></p>
+      <div id="empty-state" class="empty-state" hidden>
+        <h2 id="empty-title">No Long Run goal</h2>
+        <p id="empty-copy">Create one with <code>repoframe init --goal "..."</code>.</p>
+      </div>
+
+      <div id="graph-scroll" class="graph-scroll">
+        <svg id="graph" role="img" aria-label="Directed acyclic graph of execution stages"></svg>
+      </div>
+    </div>
+
+    <section id="iteration-card" class="iteration-card" hidden aria-labelledby="iteration-title">
+      <div class="iteration-card-head">
+        <div>
+          <p class="section-label">Mode</p>
+          <h1 id="iteration-title">Iteration</h1>
         </div>
-        <div id="empty-state" class="empty-state" hidden>
-          <span aria-hidden="true">◇</span>
-          <h2 id="empty-title">No Long Run goal</h2>
-          <p id="empty-copy">Create one with <code>repoframe init --goal "…"</code>.</p>
+        <button id="close-iteration" class="iteration-close" type="button" aria-label="Close Iteration" title="Close Iteration">×</button>
+      </div>
+      <div>
+        <p class="iteration-copy">Fast human collaboration. Git records the work; RepoFrame leaves the execution path untouched.</p>
+        <div class="iteration-stats" aria-label="Working tree summary">
+          <span><strong id="iteration-files">0</strong> files</span>
+          <span class="addition">+<strong id="iteration-additions">0</strong></span>
+          <span class="deletion">-<strong id="iteration-deletions">0</strong></span>
         </div>
-        <div id="graph-scroll" class="graph-scroll">
-          <svg id="graph" role="img" aria-label="Directed acyclic graph of execution stages"></svg>
+        <p id="iteration-error" class="inline-error" hidden></p>
+        <div class="iteration-actions">
+          <button id="commit-button" class="secondary-button" type="button">Commit</button>
+          <button id="commit-push-button" class="primary-button" type="button">Commit &amp; Push</button>
         </div>
-      </section>
+        <p id="read-only-note" class="read-only-note" hidden>Start <code>repoframe interact</code> to enable operations.</p>
+      </div>
+    </section>
+
+    <section id="operation-card" class="operation-card" hidden aria-live="polite">
+      <div>
+        <p class="section-label">Agent operation</p>
+        <strong id="operation-stage">Preparing</strong>
+      </div>
+      <button id="cancel-operation" class="quiet-button" type="button">Cancel</button>
     </section>
   </main>
 
-  <aside id="node-panel" class="node-panel" aria-hidden="true" aria-labelledby="node-title">
-    <button id="close-panel" class="close-button" type="button" aria-label="Close node details">×</button>
-    <p id="node-status" class="eyebrow"></p>
+  <aside id="node-panel" class="side-panel" aria-hidden="true" aria-labelledby="node-title">
+    <div class="panel-toolbar">
+      <span id="node-status" class="status-label"></span>
+      <button id="close-node-panel" class="quiet-button" type="button">Close</button>
+    </div>
     <h2 id="node-title"></h2>
-    <p id="node-summary" class="node-summary"></p>
-    <section>
+    <p id="node-summary" class="panel-summary"></p>
+    <section id="node-dependency-section">
       <h3>Depends on</h3>
       <ul id="node-dependencies"></ul>
     </section>
-    <section>
+    <section id="node-evidence-section">
       <h3>Evidence</h3>
       <ul id="node-evidence"></ul>
     </section>
+    <section id="intervention-result-section" hidden>
+      <h3>Result</h3>
+      <p id="intervention-result"></p>
+    </section>
+    <section id="intervention-section" class="intervention-section">
+      <button id="open-intervention" class="secondary-button" type="button">Add intervention</button>
+      <form id="intervention-form" hidden>
+        <label for="intervention-text">What should change?</label>
+        <textarea id="intervention-text" rows="5" maxlength="6000" required></textarea>
+        <p>User input is preserved as a durable node. The Agent may reorder unfinished work.</p>
+        <div class="form-actions">
+          <button id="cancel-intervention" class="secondary-button" type="button">Cancel</button>
+          <button class="primary-button" type="submit">Update execution path</button>
+        </div>
+      </form>
+      <p id="intervention-disabled" class="read-only-note" hidden></p>
+    </section>
   </aside>
 
+  <aside id="commit-panel" class="side-panel commit-panel" aria-hidden="true" aria-labelledby="commit-title">
+    <div class="panel-toolbar">
+      <span class="status-label">All changes</span>
+      <button id="close-commit-panel" class="quiet-button" type="button">Close</button>
+    </div>
+    <h2 id="commit-title">Review commit</h2>
+    <p id="commit-summary" class="panel-summary"></p>
+    <div class="commit-metrics">
+      <span><strong id="commit-file-count">0</strong> files</span>
+      <span class="addition">+<strong id="commit-additions">0</strong></span>
+      <span class="deletion">-<strong id="commit-deletions">0</strong></span>
+    </div>
+    <p class="commit-warning">Every tracked and untracked change will be staged.</p>
+    <ul id="commit-files" class="compact-file-list"></ul>
+    <form id="commit-form">
+      <label for="commit-subject">Subject</label>
+      <input id="commit-subject" maxlength="120" required>
+      <label for="commit-body">Body</label>
+      <textarea id="commit-body" rows="5"></textarea>
+      <button id="confirm-commit" class="primary-button" type="submit">Commit</button>
+    </form>
+  </aside>
+
+  <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
   <script src="/assets/app.js"></script>
 </body>
 </html>

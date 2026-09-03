@@ -106,7 +106,19 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             code, stdout, stderr = invoke(["--version"], Path(temp_dir))
         self.assertEqual(0, code, stderr)
-        self.assertEqual("repoframe 0.2.0", stdout.strip())
+        self.assertEqual("repoframe 0.3.0", stdout.strip())
+
+    def test_interact_requires_git_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, _, stderr = invoke(["interact", "--no-open"], Path(temp_dir))
+        self.assertEqual(1, code)
+        self.assertIn("Git working tree", stderr)
+
+    def test_interact_help_is_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            code, stdout, stderr = invoke(["interact", "--help"], Path(temp_dir))
+        self.assertEqual(0, code, stderr)
+        self.assertIn("--no-open", stdout)
 
 
 if __name__ == "__main__":

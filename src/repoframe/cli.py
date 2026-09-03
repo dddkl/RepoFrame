@@ -16,7 +16,7 @@ from .state import load_and_validate
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="repoframe",
-        description="Observe fast iteration through Git or visualize resumable Long Run execution state.",
+        description="Use one local workbench for lightweight Iteration and resumable Long Run execution.",
     )
     parser.add_argument("--version", action="version", version=f"repoframe {__version__}")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -35,9 +35,15 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = commands.add_parser("validate", help="Validate .repoframe/state.json.")
     validate_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON diagnostics.")
 
-    view_parser = commands.add_parser("view", help="Open the local Iteration and Long Run viewer.")
+    view_parser = commands.add_parser("view", help="Open the read-only RepoFrame workbench.")
     view_parser.add_argument("--port", type=int, default=7331, help="Loopback port (default: 7331).")
     view_parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically.")
+    interact_parser = commands.add_parser(
+        "interact",
+        help="Open the workbench with typed Commit, Push, and Intervention intents.",
+    )
+    interact_parser.add_argument("--port", type=int, default=7331, help="Loopback port (default: 7331).")
+    interact_parser.add_argument("--no-open", action="store_true", help="Do not open the browser automatically.")
     return parser
 
 
@@ -100,6 +106,18 @@ def main(argv: Sequence[str] | None = None, *, cwd: Path | None = None) -> int:
         from .server import run_viewer
 
         return run_viewer(root, args.port, open_browser=not args.no_open)
+    if args.command == "interact":
+        from .mode import ModeError, is_git_repository
+        from .server import run_interactive
+
+        try:
+            if not is_git_repository(root):
+                print("repoframe interact: current directory is not inside a Git working tree.", file=sys.stderr)
+                return 1
+        except ModeError as exc:
+            print(f"repoframe interact: {exc}", file=sys.stderr)
+            return 1
+        return run_interactive(root, args.port, open_browser=not args.no_open)
     parser.error(f"Unknown command: {args.command}")
     return 2
 

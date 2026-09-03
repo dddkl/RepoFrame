@@ -4,25 +4,50 @@
 
 RepoFrame is maintained from the latest default branch. The archived `repo-init` skill is unsupported.
 
-## Local viewer security
+## Local service
 
-RepoFrame is designed for local development:
+RepoFrame is a local development tool:
 
-- the server binds only to `127.0.0.1`;
-- browser routes and assets are explicitly allowlisted;
-- all API endpoints are read-only;
-- state-changing HTTP methods are rejected;
-- no endpoint executes arbitrary shell input or controls an Agent;
-- no browser asset connects to an external service.
+- both services bind only to `127.0.0.1`;
+- browser routes and assets are allowlisted;
+- `repoframe view` rejects all state-changing HTTP methods;
+- `repoframe interact` accepts only mode, Commit, Push, cancel, and Intervention intents;
+- interactive writes require a random per-process token and exact Origin/Host checks;
+- no endpoint accepts an arbitrary shell command, executable template, Prompt, file path, JSON Patch, or state document;
+- browser assets make no external network requests.
 
-Iteration invokes a fixed set of read-only Git commands to inspect status, diff statistics, branch, and commit history. Repository paths, branch names, commit subjects, author names, and working-file names are therefore visible to anyone who can access the local Viewer.
+Do not expose RepoFrame through a reverse proxy, tunnel, port forward, container host mapping, or public network.
 
-Long Run snapshots can additionally contain project names, outcomes, constraints, summaries, file paths, test commands, or commit evidence. Invalid archived snapshots are reported but never executed.
+## Repository and state data
 
-Do not expose RepoFrame through a reverse proxy, tunnel, port forward, container host mapping, or public network. Treat Viewer data according to the repository's confidentiality requirements.
+The Viewer exposes local Git branch names, commit subjects, author names, paths, change statistics, Goal outcomes, constraints, summaries, evidence, and user interventions to the local browser. Treat the service according to the repository's confidentiality requirements.
+
+The session token is injected into the locally served page. It is not stored on disk or logged. Requests from another Origin are rejected even if they guess an endpoint.
+
+## Git mutations
+
+Commit confirmation runs `git add -A`, so every tracked and untracked working-tree change is included. Review the displayed file list before confirming, especially for secrets and generated files.
+
+RepoFrame:
+
+- verifies that the working tree still matches the proposal;
+- does not reset or check out files;
+- does not roll back a failed hook by overwriting the index;
+- uses ordinary `git push`;
+- never force-pushes;
+- never creates or changes remotes, upstreams, credentials, or proxy configuration;
+- preserves a local Commit when Push fails.
+
+## Operation Agent
+
+The Codex provider runs an ephemeral, read-only, Schema-constrained `codex exec` process. It may inspect the repository and Git but cannot write through its sandbox. RepoFrame applies state changes and Git commands separately.
+
+At most one operation is active. Intervention analysis may use at most two read-only workers. Their output is transient and is not exposed as private reasoning.
+
+RepoFrame cannot detect unrelated Agent processes started in a terminal, editor, or another service. Users must avoid external concurrent writes when using interactive operations.
 
 ## Reporting a vulnerability
 
-Use GitHub private vulnerability reporting when available. If unavailable, open a minimal public issue requesting a private contact path without including exploit details.
+Use GitHub private vulnerability reporting when available. Otherwise open a minimal public issue requesting a private contact path without exploit details.
 
 Include the affected version, mode, impact, reproduction conditions, and known mitigation. RepoFrame does not currently operate a bug bounty program.

@@ -1,6 +1,6 @@
 # Contributing
 
-RepoFrame is intentionally small. Contributions must preserve its two product semantics:
+RepoFrame is intentionally small. Contributions must preserve:
 
 > Iteration observes development. Long Run models execution.
 
@@ -8,9 +8,7 @@ RepoFrame is intentionally small. Contributions must preserve its two product se
 
 - Python 3.10 or newer
 - Git
-- no third-party runtime dependencies
-
-For local development:
+- zero third-party runtime dependencies
 
 ```bash
 python -m pip install -e .
@@ -18,7 +16,7 @@ python -m unittest discover -s tests -v
 python -m compileall -q src tests
 ```
 
-When package metadata or resources change:
+For package verification:
 
 ```bash
 python -m pip install build
@@ -27,41 +25,63 @@ python -m pip install --force-reinstall dist/*.whl
 repoframe --version
 ```
 
-## Mode boundaries
+## Product boundaries
 
-Iteration must remain usable without `.repoframe/state.json`. Its API reads current Git facts and must not stage, commit, reset, check out, write repository files, or duplicate activity into RepoFrame storage. Avoid adding semantic fields that an Agent would need to keep current during a fast conversation.
+Iteration must not maintain Goal, DAG, focus, activity, or summary state. Its UI may read Git and request a confirmed Commit operation. Local mode is stored in Git config so switching does not dirty the worktree.
 
-Long Run may use explicit execution state, but only for a Goal and meaningful DAG stages. It must not grow owners, deadlines, priority queues, percentages, private reasoning, chat transcripts, or orchestration policy.
+Long Run contains only one Goal, execution nodes, and durable user interventions per snapshot. Do not add owners, deadlines, priorities, percentages, chat transcripts, private reasoning, or a general orchestration language.
 
-The two modes may share visual components and the loopback server, but not their state assumptions. Tests should prove that Iteration works in a Git repository with no state file.
+RepoFrame operation Agents make semantic proposals. They do not write code, Git, or state. Deterministic Python code validates and applies Graph Patch and runs the fixed Git commands.
 
 ## Protocol changes
 
-`src/repoframe/resources/state.schema.json` is the Long Run structural contract. The Python validator adds semantic DAG checks.
+`src/repoframe/resources/state.schema.json` is the structural contract; `state.py` adds semantic checks.
 
 When changing it:
 
-- keep packaged Schema, Python validation, and tests aligned;
-- do not reinterpret an existing `schema_version` incompatibly;
+- preserve v1 reads unless a deliberate breaking release says otherwise;
+- keep packaged Schema, Python validation, and fixtures aligned;
 - reject unknown fields;
-- do not add a mode to each Goal or Node;
-- keep each snapshot independent and limited to one Goal;
-- let Git provide history and recovery rather than adding an event log.
+- keep node IDs and completed history stable;
+- ensure user intervention text cannot be changed through the API;
+- validate a full copied snapshot before atomic replacement;
+- use Git for history rather than adding an event log.
 
-## Viewer and API changes
+## Interactive API
 
 - Bind only to `127.0.0.1`.
-- Keep routes and packaged assets on explicit allowlists.
-- Keep browser endpoints read-only until a separately designed intent API exists.
-- Escape project data through DOM text APIs; do not build executable markup from repository content.
-- Preserve ETag behavior and invalid-state recovery.
-- Keep Iteration Git commands fixed and read-only.
-- Respect `prefers-reduced-motion` and avoid status meaning that depends only on color.
+- Keep `repoframe view` read-only.
+- Keep interactive routes and operation types on explicit allowlists.
+- Require the session token and exact Origin/Host validation.
+- Never accept arbitrary shell commands, executable templates, Prompts, paths, or JSON Patch.
+- Do not expose Agent events, private reasoning, or full internal Prompts.
+- Use `shell=False` and pass user text through stdin or structured data.
+- Keep at most one RepoFrame-managed operation active.
+
+## Viewer
+
+- Keep assets local and dependency-free.
+- Use DOM text APIs for repository content.
+- Preserve ETag and invalid-state recovery.
+- Keep the graph usable by blank-space drag, keyboard selection, and status text.
+- Respect `prefers-reduced-motion`.
+- Keep secondary panels below the fixed top bar.
+- Treat archived Goal snapshots as read-only.
+
+No real-browser automation is required. Unit and HTTP integration tests are the automated baseline; use an ignored `_test/` repository for manual visual acceptance.
 
 ## Agent adapters
 
-Adapters must remain thin and semantically identical. Preserve user-authored content outside RepoFrame markers. Iteration instructions must not imply state maintenance; Long Run instructions should only require updates at meaningful boundaries.
+Adapters remain thin and semantically identical. Preserve user-authored content outside managed markers. Iteration instructions must reject execution-state maintenance; Long Run instructions should require updates only at meaningful boundaries.
 
 ## Pull requests
 
-Describe the user-visible mode, protocol compatibility impact, exact commands run, and any effect on Git inspection, state validation, adapter files, loopback security, or packaged resources.
+Describe:
+
+- user-visible behavior;
+- protocol compatibility;
+- exact tests run;
+- Git mutation impact;
+- Agent/provider impact;
+- loopback security impact;
+- packaged-resource impact.

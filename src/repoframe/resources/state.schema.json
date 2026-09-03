@@ -1,20 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://repoframe.dev/schema/state-v1.json",
-  "title": "RepoFrame Long Run execution state v1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["$schema", "schema_version", "goal", "nodes", "updated_at"],
-  "properties": {
-    "$schema": {"const": "./state.schema.json"},
-    "schema_version": {"const": 1},
-    "goal": {"$ref": "#/$defs/goal"},
-    "nodes": {
-      "type": "array",
-      "items": {"$ref": "#/$defs/node"}
-    },
-    "updated_at": {"type": "string", "format": "date-time"}
-  },
+  "$id": "https://repoframe.dev/schema/state.json",
+  "title": "RepoFrame Long Run execution state",
+  "oneOf": [
+    {"$ref": "#/$defs/stateV1"},
+    {"$ref": "#/$defs/stateV2"}
+  ],
   "$defs": {
     "identifier": {
       "type": "string",
@@ -57,6 +48,69 @@
         },
         "summary": {"$ref": "#/$defs/nonEmptyString"},
         "evidence": {"$ref": "#/$defs/stringList"}
+      }
+    },
+    "interventionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "node_ids"],
+      "properties": {
+        "summary": {"$ref": "#/$defs/nonEmptyString"},
+        "node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        }
+      }
+    },
+    "intervention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "target_node_id", "text", "status", "created_at"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "target_node_id": {"$ref": "#/$defs/identifier"},
+        "text": {"$ref": "#/$defs/nonEmptyString"},
+        "status": {"enum": ["open", "resolving", "incorporated", "needs_user"]},
+        "created_at": {"type": "string", "format": "date-time"},
+        "result": {"$ref": "#/$defs/interventionResult"}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"status": {"const": "incorporated"}},
+            "required": ["status"]
+          },
+          "then": {"required": ["result"]}
+        }
+      ]
+    },
+    "stateV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema_version", "goal", "nodes", "updated_at"],
+      "properties": {
+        "$schema": {"const": "./state.schema.json"},
+        "schema_version": {"const": 1},
+        "goal": {"$ref": "#/$defs/goal"},
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "stateV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "schema_version", "goal", "nodes", "interventions", "updated_at"],
+      "properties": {
+        "$schema": {"const": "./state.schema.json"},
+        "schema_version": {"const": 2},
+        "goal": {"$ref": "#/$defs/goal"},
+        "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+        "interventions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/intervention"}
+        },
+        "updated_at": {"type": "string", "format": "date-time"}
       }
     }
   }

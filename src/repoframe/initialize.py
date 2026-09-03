@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
+from .mode import initialize_mode
 from .state import load_and_validate, new_state, validate_state
 
 
@@ -17,10 +18,11 @@ END_MARKER = "<!-- repoframe:end -->"
 MANAGED_BLOCK = """<!-- repoframe:start -->
 ## RepoFrame
 
-Read `.repoframe/instructions.md` to choose the RepoFrame mode.
+Before multi-step work, read `.repoframe/instructions.md` and the
+repository-local `repoframe.mode` Git configuration.
 
-Iteration uses Git directly and does not maintain execution state.
-Long Run reads and updates `.repoframe/state.json` only at meaningful stages.
+Iteration uses Git and does not maintain execution state. Long Run reads
+and updates `.repoframe/state.json` only at meaningful stages.
 <!-- repoframe:end -->
 """
 AGENT_PATHS = {
@@ -210,4 +212,5 @@ def initialize(
             changes.append(Change(relative, "updated" if target.exists() else "created"))
 
     _write_batch(repo, planned)
+    initialize_mode(repo, "long-run" if state_path.exists() else "iteration")
     return changes

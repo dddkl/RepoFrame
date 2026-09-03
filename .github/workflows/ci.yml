@@ -30,6 +30,7 @@ jobs:
           repoframe --help
           repoframe validate --help
           repoframe view --help
+          repoframe interact --help
 
   build:
     runs-on: ubuntu-latest

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "repoframe"
-version = "0.2.0"
-description = "Git-observed iteration and resumable Long Run execution state for coding agents"
+version = "0.3.0"
+description = "A unified local workbench for lightweight iteration and resumable agent execution"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
