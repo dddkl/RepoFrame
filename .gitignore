@@ -1,0 +1,14 @@
+node_modules/
+dist/
+_test/
+.repoframe/
+.tmp/
+test-results/
+playwright-report/
+*.tgz
+*.tsbuildinfo
+.npmrc
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
