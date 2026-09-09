@@ -3,8 +3,6 @@ import zhCN from "zod/v4/locales/zh-CN.js";
 
 z.config(zhCN());
 
-const text = z.string().trim().min(1, "不能为空");
-const lines = z.array(text);
 export const modeSchema = z.enum(["default", "iteration"]);
 export const idSchema = z
   .string()
@@ -23,25 +21,57 @@ export const stateSchema = z
     (state) => state.mode === "default" || state.activeGoal === null,
     "小步迭代不能同时启用目标，请先暂停或完成当前目标",
   );
+const markdown = z.string();
+const requiredMarkdown = markdown.refine(
+  (value) => value.trim().length > 0,
+  "不能为空",
+);
 export const productSchema = z
   .object({
-    summary: text,
-    users: text,
-    coreRequirements: lines.min(1, "至少填写一条核心需求"),
-    constraints: lines,
-    nonGoals: lines,
+    summary: requiredMarkdown,
+    users: requiredMarkdown,
+    coreRequirements: requiredMarkdown,
+    constraints: markdown,
+    nonGoals: markdown,
   })
-  .passthrough();
+  .catchall(markdown);
+
+// Read old files without changing them. An explicit save writes the string format.
+export function legacyMarkdown(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.every((item) => typeof item === "string"))
+    return value.map((item) => `- ${item.replace(/\n/g, "\n  ")}`).join("\n");
+  // Fence other legacy JSON values so no information is lost in conversion.
+  const source = JSON.stringify(value, null, 2) ?? "null";
+  const fence = "`".repeat(
+    Math.max(
+      3,
+      ...Array.from(source.matchAll(/`+/g), (match) => match[0].length + 1),
+    ),
+  );
+  return `${fence}json\n${source}\n${fence}`;
+}
+function normalizeMarkdownFields(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [key, legacyMarkdown(item)]),
+  );
+}
+export const productReadSchema = z.preprocess(
+  normalizeMarkdownFields,
+  productSchema,
+);
 export const goalSchema = z
   .object({
-    title: text,
-    objective: text,
-    doneWhen: lines.min(1, "至少填写一条完成条件"),
-    constraints: lines,
-    progress: lines,
+    title: requiredMarkdown,
+    objective: requiredMarkdown,
+    doneWhen: requiredMarkdown,
+    constraints: markdown,
+    progress: markdown,
     status: z.enum(["open", "completed"]).default("open"),
   })
-  .passthrough();
+  .catchall(markdown);
+export const goalReadSchema = z.preprocess(normalizeMarkdownFields, goalSchema);
 
 export type Mode = z.infer<typeof modeSchema>;
 export type State = z.infer<typeof stateSchema>;

@@ -10,17 +10,17 @@ let store: Store;
 const goal = {
   title: "邮箱认证",
   objective: "完成邮箱登录流程",
-  doneWhen: ["可以登录", "受保护路由正常工作"],
-  constraints: [],
-  progress: [],
+  doneWhen: "- 可以登录\n- 受保护路由正常工作",
+  constraints: "",
+  progress: "",
   status: "open" as const,
 };
 const product = {
   summary: "测试产品",
   users: "开发者",
-  coreRequirements: ["管理开发上下文"],
-  constraints: [],
-  nonGoals: [],
+  coreRequirements: "- 管理开发上下文",
+  constraints: "",
+  nonGoals: "",
 };
 const state = async () => (await store.read(STATE, stateSchema))!;
 const current = async (id: string) =>
@@ -55,7 +55,7 @@ describe("常驻模式与按需目标", () => {
   it("启用恢复正常模式，阻止迭代，暂停保留进展后允许迭代", async () => {
     await store.setMode("iteration", (await state()).version);
     await store.createGoal(
-      { ...goal, progress: ["已检查现有路由"] },
+      { ...goal, progress: "- 已检查现有路由" },
       "auth",
       true,
       (await state()).version,
@@ -74,7 +74,7 @@ describe("常驻模式与按需目标", () => {
       (await state()).version,
     );
     expect((await state()).data).toEqual({ mode: "default", activeGoal: null });
-    expect((await current("auth")).data.progress).toEqual(["已检查现有路由"]);
+    expect((await current("auth")).data.progress).toEqual("- 已检查现有路由");
     await store.setMode("iteration", (await state()).version);
     await store.goalAction(
       "auth",
@@ -127,6 +127,37 @@ describe("常驻模式与按需目标", () => {
 });
 
 describe("文件保全与错误诊断", () => {
+  it("旧产品只读转换，显式保存统一字符串，保留 Markdown 缩进并拒绝非字符串写入", async () => {
+    const legacy = {
+      ...product,
+      coreRequirements: ["需求一", "需求二\n详细说明"],
+      constraints: "",
+      extra: { enabled: false, count: 0 },
+      ticks: ["```"],
+    };
+    const source = JSON.stringify(legacy);
+    await fs.writeFile(path.join(root, PRODUCT), source);
+    const loaded = (await store.snapshot()).product!;
+    expect(loaded.data.coreRequirements).toBe("- 需求一\n- 需求二\n  详细说明");
+    expect(loaded.data.constraints).toBe("");
+    expect(loaded.data.extra).toContain('"enabled": false');
+    expect(await store.raw(PRODUCT)).toBe(source);
+    for (const invalid of [[], {}, false, 0, null]) {
+      await expect(
+        store.saveProduct({ ...loaded.data, extra: invalid }, loaded.version),
+      ).rejects.toMatchObject({ status: 422 });
+    }
+    const markdown = "    code\n\n- 项目  \n  下一行\n";
+    await store.saveProduct(
+      { ...loaded.data, summary: markdown },
+      loaded.version,
+    );
+    const saved = JSON.parse((await store.raw(PRODUCT))!);
+    expect(
+      Object.values(saved).every((value) => typeof value === "string"),
+    ).toBe(true);
+    expect(saved.summary).toBe(markdown);
+  });
   it("重复初始化保留原始入口、PRD、产品和状态且无重复路由", async () => {
     await fs.writeFile(
       path.join(root, "AGENTS.md"),

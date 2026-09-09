@@ -25,6 +25,7 @@ import {
   EmptyMedia,
 } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
+import { MarkdownContent, MarkdownTitle } from "./product-fields";
 import type { GoalFile, Mode, Snapshot } from "../shared/protocol";
 
 export function ModeControl({
@@ -43,7 +44,7 @@ export function ModeControl({
   return (
     <ToggleGroup
       aria-label={compact ? "全局开发模式" : "开发模式"}
-      variant="outline"
+      variant="mode"
       size={compact ? "sm" : "lg"}
       spacing={compact ? 0 : 2}
       className={cn(!compact && "w-full items-stretch")}
@@ -159,10 +160,10 @@ export function QuickStart({
           <CardContent className="flex flex-1 flex-col justify-center gap-3">
             {active ? (
               <>
-                <h2 className="break-words">{active.data.title}</h2>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  {active.data.objective}
-                </p>
+                <h2 className="break-words">
+                  <MarkdownTitle value={active.data.title} />
+                </h2>
+                <MarkdownContent value={active.data.objective} />
               </>
             ) : (
               <Empty className="flex-row justify-start gap-3 p-0 text-left">

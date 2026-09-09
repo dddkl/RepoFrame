@@ -1,15 +1,9 @@
 import { useEffect, useState } from "react";
-import { PlusIcon, XIcon, SaveIcon } from "lucide-react";
+import { PlusIcon, SaveIcon } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  InputGroup,
-  InputGroupInput,
-  InputGroupAddon,
-  InputGroupButton,
-} from "@/components/ui/input-group";
 import {
   Field,
   FieldLabel,
@@ -96,70 +90,6 @@ function TextField({
   );
 }
 
-function ListEditor({
-  label,
-  name,
-  value,
-  change,
-  error,
-}: {
-  label: string;
-  name: string;
-  value: string[];
-  change: (value: string[]) => void;
-  error?: string;
-}) {
-  return (
-    <FieldSet>
-      <FieldLegend variant="label">{label}</FieldLegend>
-      <FieldGroup className="gap-2">
-        {value.map((item, index) => (
-          <Field key={index} data-invalid={!!error}>
-            <FieldLabel className="sr-only" htmlFor={`${name}-${index}`}>
-              {label} {index + 1}
-            </FieldLabel>
-            <InputGroup>
-              <InputGroupInput
-                id={`${name}-${index}`}
-                value={item}
-                aria-invalid={!!error}
-                onChange={(event) =>
-                  change(
-                    value.map((old, i) =>
-                      i === index ? event.target.value : old,
-                    ),
-                  )
-                }
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  type="button"
-                  size="icon-xs"
-                  aria-label={`删除${label} ${index + 1}`}
-                  onClick={() => change(value.filter((_, i) => i !== index))}
-                >
-                  <XIcon data-icon="inline-start" />
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-          </Field>
-        ))}
-        {error && <FieldError>{error}</FieldError>}
-      </FieldGroup>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={() => change([...value, ""])}
-      >
-        <PlusIcon data-icon="inline-start" />
-        添加{label}
-      </Button>
-    </FieldSet>
-  );
-}
-
 function ChangedNotice({ onReload }: { onReload: () => void }) {
   return (
     <Alert>
@@ -190,9 +120,9 @@ export function GoalEditor({
   const initial: Goal = original?.data || {
     title: "",
     objective: "",
-    doneWhen: [""],
-    constraints: [],
-    progress: [],
+    doneWhen: "",
+    constraints: "",
+    progress: "",
     status: "open",
   };
   const [draft, setDraft] = useState<Goal>(structuredClone(initial));
@@ -323,27 +253,53 @@ export function GoalEditor({
                 error={errors.objective}
                 multiline
               />
-              <ListEditor
+              <TextField
+                multiline
                 name="doneWhen"
                 label="完成条件"
                 value={draft.doneWhen}
                 change={(value) => update("doneWhen", value)}
                 error={errors.doneWhen}
               />
-              <ListEditor
+              <TextField
+                multiline
                 name="constraints"
                 label="任务约束"
                 value={draft.constraints}
                 change={(value) => update("constraints", value)}
                 error={errors.constraints}
               />
-              <ListEditor
+              <TextField
+                multiline
                 name="progress"
                 label="进展记录"
                 value={draft.progress}
                 change={(value) => update("progress", value)}
                 error={errors.progress}
               />
+              {Object.entries(draft)
+                .filter(
+                  ([key]) =>
+                    ![
+                      "title",
+                      "objective",
+                      "doneWhen",
+                      "constraints",
+                      "progress",
+                      "status",
+                    ].includes(key),
+                )
+                .map(([key, value], index) => (
+                  <TextField
+                    key={key}
+                    name={`goal-extra-${index}`}
+                    label={key}
+                    value={value}
+                    change={(text) => update(key, text)}
+                    error={errors[key]}
+                    multiline
+                  />
+                ))}
             </FieldGroup>
           </fieldset>
         </form>
@@ -386,35 +342,22 @@ export function ProductEditor({
   close,
   saved,
   reload,
-  startAdding = false,
 }: {
   original: NonNullable<Snapshot["product"]>;
   snapshot: Snapshot;
   close: () => void;
   saved: () => Promise<void>;
   reload: () => void;
-  startAdding?: boolean;
 }) {
   const [draft, setDraft] = useState<Product>(structuredClone(original.data));
-  const isStringList = (value: unknown): value is string[] =>
-    Array.isArray(value) && value.every((item) => typeof item === "string");
-  const initialJson = Object.fromEntries(
-    Object.entries(original.data)
-      .filter(([, value]) => typeof value !== "string" && !isStringList(value))
-      .map(([key, value]) => [key, JSON.stringify(value, null, 2)]),
-  );
-  const [jsonDrafts, setJsonDrafts] =
-    useState<Record<string, string>>(initialJson);
-  const [adding, setAdding] = useState(startAdding);
+  const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [nameError, setNameError] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const canLeave = useLeaveGuard(
-    JSON.stringify(draft) !== JSON.stringify(original.data) ||
-      JSON.stringify(jsonDrafts) !== JSON.stringify(initialJson) ||
-      !!newName,
+    JSON.stringify(draft) !== JSON.stringify(original.data) || !!newName,
   );
   const changed = snapshot.product?.version !== original.version;
   const update = <K extends keyof Product>(name: K, value: Product[K]) =>
@@ -448,20 +391,7 @@ export function ProductEditor({
       setNameError("请先将字段添加到表单，或取消新增");
       return;
     }
-    const candidate = { ...draft };
-    const jsonErrors: Errors = {};
-    for (const [key, value] of Object.entries(jsonDrafts)) {
-      try {
-        candidate[key] = JSON.parse(value);
-      } catch {
-        jsonErrors[key] = "请输入有效的 JSON 内容";
-      }
-    }
-    if (Object.keys(jsonErrors).length) {
-      setErrors(jsonErrors);
-      return;
-    }
-    const checked = productSchema.safeParse(candidate);
+    const checked = productSchema.safeParse(draft);
     if (!checked.success) {
       setErrors(errorsFor(checked.error));
       return;
@@ -495,7 +425,7 @@ export function ProductEditor({
         <DialogHeader>
           <DialogTitle>编辑产品信息</DialogTitle>
           <DialogDescription>
-            这些信息是长期产品依据。仅在产品定位或约束明确变化时修改。
+            每个字段支持 Markdown，保存后在项目页展示排版效果。
           </DialogDescription>
         </DialogHeader>
         <form
@@ -574,41 +504,15 @@ export function ProductEditor({
               {Object.entries(draft).map(([key, value], index) => {
                 const label = productFieldLabel(key);
                 const name = `product-field-${index}`;
-                if (Object.hasOwn(jsonDrafts, key))
-                  return (
-                    <TextField
-                      key={key}
-                      name={name}
-                      label={label}
-                      value={jsonDrafts[key]}
-                      change={(text) =>
-                        setJsonDrafts({ ...jsonDrafts, [key]: text })
-                      }
-                      error={errors[key]}
-                      multiline
-                      description="以 JSON 编辑，保存时保留数字、布尔值、对象或数组类型。"
-                    />
-                  );
-                if (isStringList(value))
-                  return (
-                    <ListEditor
-                      key={key}
-                      name={name}
-                      label={label}
-                      value={value}
-                      change={(items) => update(key, items)}
-                      error={errors[key]}
-                    />
-                  );
                 return (
                   <TextField
                     key={key}
                     name={name}
                     label={label}
-                    value={String(value)}
+                    value={value}
                     change={(text) => update(key, text)}
                     error={errors[key]}
-                    multiline={key !== "users"}
+                    multiline
                   />
                 );
               })}

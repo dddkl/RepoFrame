@@ -7,7 +7,9 @@ import {
   parse,
   stateSchema,
   productSchema,
+  productReadSchema,
   goalSchema,
+  goalReadSchema,
   idSchema,
   type Mode,
   type Snapshot,
@@ -128,7 +130,7 @@ export class Store {
       }
     };
     result.state = await inspect(STATE, stateSchema);
-    result.product = await inspect(PRODUCT, productSchema);
+    result.product = await inspect(PRODUCT, productReadSchema);
     if (!result.state && !result.diagnostics.some((d) => d.file === STATE))
       result.diagnostics.push({
         file: STATE,
@@ -155,7 +157,7 @@ export class Store {
           });
           continue;
         }
-        const goal = await inspect(`${GOALS}/${entry.name}`, goalSchema);
+        const goal = await inspect(`${GOALS}/${entry.name}`, goalReadSchema);
         if (goal) result.goals.push({ id, ...goal });
       }
     } catch (error) {
@@ -201,7 +203,7 @@ export class Store {
 
   saveProduct(value: unknown, version: unknown) {
     return this.serial(async () => {
-      const current = await this.read(PRODUCT, productSchema);
+      const current = await this.read(PRODUCT, productReadSchema);
       if (!current)
         throw new AppError("请先通过初始化 Skill 确认产品信息", 409);
       if (version !== current.version)
@@ -245,7 +247,7 @@ export class Store {
   editGoal(id: string, value: unknown, version: unknown) {
     return this.serial(async () => {
       const file = `${GOALS}/${parse(idSchema, id)}.json`;
-      const current = await this.read(file, goalSchema);
+      const current = await this.read(file, goalReadSchema);
       if (!current) throw new AppError("目标不存在", 404);
       if (version !== current.version)
         throw new AppError("目标已变化，请重新加载后保存", 409);
@@ -279,7 +281,7 @@ export class Store {
         return;
       }
       const file = `${GOALS}/${safeId}.json`;
-      const goal = await this.read(file, goalSchema);
+      const goal = await this.read(file, goalReadSchema);
       if (!goal) throw new AppError("目标不存在", 404);
       if (version !== goal.version)
         throw new AppError("目标已变化，请重新加载后重试", 409);
