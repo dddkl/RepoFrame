@@ -1,17 +1,14 @@
+import { graph } from "../fixtures/progress";
+
 import { test as base, expect } from "@playwright/test";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 
-const product = {
-  summary: "一个离线优先的个人笔记工具，让想法、资料与写作有序沉淀。",
-  users: "希望在本地管理知识的独立开发者与写作者",
-  coreRequirements:
-    "- 创建、编辑和检索 Markdown 笔记\n- 按标签整理内容，快速找到需要的资料\n- 所有内容保存在本地，支持导入和导出",
-  constraints: "- 使用本地文件存储\n- 保持离线可用",
-  nonGoals: "- 多人实时协作\n- 云端账户与同步",
-};
+const product =
+  "# 产品说明\n\n一个离线优先的个人笔记工具，让想法、资料与写作有序沉淀。\n\n## 主要用户\n\n独立开发者与写作者\n\n## 核心需求\n\n- 创建、编辑和检索 Markdown 笔记\n- 按标签整理内容\n- 所有内容保存在本地\n";
+
 const test = base.extend<{
   repo: { root: string; url: string; restart: () => Promise<void> };
 }>({
@@ -26,10 +23,7 @@ const test = base.extend<{
       [path.resolve("dist/cli.js"), "init", "--repo", root],
       { windowsHide: true },
     );
-    await fs.writeFile(
-      path.join(root, ".agents/docs/product.json"),
-      JSON.stringify(product),
-    );
+    await fs.writeFile(path.join(root, ".agents/docs/product.md"), product);
     const probe = createServer();
     await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", resolve));
     const port = (probe.address() as { port: number }).port;
@@ -154,9 +148,9 @@ test("常驻模式、按需目标、暂停恢复及重启持久化", async ({
   await page.getByRole("button", { name: "打开目标", exact: true }).click();
   const file = path.join(repo.root, ".agents/goals/search.json");
   const goal = JSON.parse(await fs.readFile(file, "utf8"));
-  goal.progress = "已建立中文分词索引，并通过基础查询测试";
+  goal.progress = graph;
   await fs.writeFile(file, JSON.stringify(goal));
-  await expect(page.getByText(goal.progress)).toBeVisible();
+  await expect(page.getByText("界面实现", { exact: true })).toBeVisible();
   await page.screenshot({
     path: info.outputPath("目标详情.png"),
     fullPage: true,
@@ -189,7 +183,7 @@ test("常驻模式、按需目标、暂停恢复及重启持久化", async ({
   await expect(
     page.getByRole("button", { name: "暂停目标", exact: true }),
   ).toBeEnabled();
-  await expect(page.getByText(goal.progress)).toBeVisible();
+  await expect(page.getByText("界面实现", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "完成目标", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "重新启用", exact: true }),
@@ -211,16 +205,13 @@ test("产品编辑、外部冲突保护、重新加载与中文校验", async ({
   await expect(page.getByText("本地已连接")).toBeVisible();
   await page.getByRole("button", { name: "编辑产品信息" }).click();
   await page
-    .getByRole("textbox", { name: "产品描述", exact: true })
+    .getByRole("textbox", { name: "产品 Markdown 正文", exact: true })
     .fill("尚未保存的本地草稿");
-  const file = path.join(repo.root, ".agents/docs/product.json");
-  await fs.writeFile(
-    file,
-    JSON.stringify({ ...product, summary: "来自 Agent 的新描述" }),
-  );
+  const file = path.join(repo.root, ".agents/docs/product.md");
+  await fs.writeFile(file, "来自 Agent 的新描述");
   await expect(page.getByText("文件在编辑期间发生变化")).toBeVisible();
   await expect(
-    page.getByRole("textbox", { name: "产品描述", exact: true }),
+    page.getByRole("textbox", { name: "产品 Markdown 正文", exact: true }),
   ).toHaveValue("尚未保存的本地草稿");
   await expect(
     page.getByRole("button", { name: "保存产品信息" }),
@@ -228,15 +219,10 @@ test("产品编辑、外部冲突保护、重新加载与中文校验", async ({
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "重新加载", exact: true }).click();
   await expect(
-    page.getByRole("textbox", { name: "产品描述", exact: true }),
-  ).toHaveValue("来自 Agent 的新描述");
-  await page.getByRole("textbox", { name: "产品描述", exact: true }).fill("");
-  await page.getByRole("button", { name: "保存产品信息" }).click();
-  await expect(
-    page.getByRole("textbox", { name: "产品描述", exact: true }),
-  ).toHaveAttribute("aria-invalid", "true");
+    page.getByRole("textbox", { name: "产品 Markdown 正文", exact: true }),
+  ).toHaveValue(/来自 Agent 的新描述/);
   await page
-    .getByRole("textbox", { name: "产品描述", exact: true })
+    .getByRole("textbox", { name: "产品 Markdown 正文", exact: true })
     .fill("已确认的本地笔记工具");
   await page.screenshot({
     path: info.outputPath("产品编辑.png"),
@@ -246,9 +232,9 @@ test("产品编辑、外部冲突保护、重新加载与中文校验", async ({
   await expect(
     page.getByRole("dialog", { name: "编辑产品信息", exact: true }),
   ).toHaveCount(0);
-  expect(JSON.parse(await fs.readFile(file, "utf8")).summary).toBe(
-    "已确认的本地笔记工具",
-  );
+  expect(
+    await fs.readFile(path.join(repo.root, ".agents/docs/product.md"), "utf8"),
+  ).toBe("已确认的本地笔记工具");
 });
 
 test("窄屏导航、创建并启用、离开草稿保护", async ({ page, repo }, info) => {
@@ -298,7 +284,7 @@ test("窄屏导航、创建并启用、离开草稿保护", async ({ page, repo 
 });
 
 test("初始化提示、文件损坏与非法模式组合", async ({ page, repo }) => {
-  await fs.unlink(path.join(repo.root, ".agents/docs/product.json"));
+  await fs.unlink(path.join(repo.root, ".agents/docs/product.md"));
   await page.goto(`${repo.url}/#project`);
   await expect(page.getByText("先确认产品方向")).toBeVisible();
   await fs.writeFile(
@@ -331,8 +317,8 @@ test("快速开始布局、全局模式和项目页分离", async ({ page, repo 
   await expect(goal.getByText("尚未启用目标")).toBeVisible();
   const modeBox = await mode.boundingBox();
   const goalBox = await goal.boundingBox();
-  expect(modeBox!.y).toBe(goalBox!.y);
-  expect(goalBox!.x).toBeGreaterThan(modeBox!.x);
+  expect(goalBox!.y).toBeGreaterThan(modeBox!.y + modeBox!.height);
+  expect(goalBox!.x).toBe(modeBox!.x);
   await page
     .getByRole("group", { name: "全局开发模式", exact: true })
     .getByRole("button", { name: "小步迭代", exact: true })
@@ -374,93 +360,46 @@ test("快速开始布局、全局模式和项目页分离", async ({ page, repo 
   });
 });
 
-test("产品 Markdown 展示、原文编辑、新增字段与安全渲染", async ({
+test("产品完整 Markdown 编辑、无预设字段与安全渲染", async ({
   page,
   repo,
 }, info) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  const file = path.join(repo.root, ".agents/docs/product.json");
+  const file = path.join(repo.root, ".agents/docs/product.md");
   const source =
-    "## 验收清单\n\n- **离线可用**\n- 导出数据\n\n```js\nconst ready = true;\n```\n\n| 场景 | 结果 |\n| --- | --- |\n| 离线 | 通过 |\n\n[项目文档](https://example.com)\n\n<script>window.badMarkdown = true</script>\n\n[危险链接](javascript:alert(1))";
-  const extended = { ...product, 特殊要求: source };
-  await fs.writeFile(file, JSON.stringify(extended));
-  await page.goto(`${repo.url}/#project`);
+    "# 自由产品文档\n\n- **离线可用**\n\n| 场景 | 结果 |\n| --- | --- |\n| 离线 | 通过 |\n\n<script>window.badMarkdown = true</script>";
+  await fs.writeFile(file, source);
+  await page.goto(repo.url + "/#project");
   await expect(
-    page.getByRole("button", { name: "增加字段", exact: true }),
-  ).toHaveCount(0);
-  const requirements = page.getByRole("region", {
-    name: "特殊要求",
-    exact: true,
-  });
-  await expect(
-    requirements.getByRole("heading", { name: "验收清单" }),
+    page.getByRole("heading", { name: "自由产品文档" }),
   ).toBeVisible();
-  await expect(requirements.locator("strong")).toHaveText("离线可用");
-  await expect(requirements.locator("pre code")).toContainText(
-    "const ready = true;",
-  );
-  await expect(requirements.getByRole("table")).toBeVisible();
-  await expect(
-    requirements.getByRole("link", { name: "项目文档" }),
-  ).toHaveAttribute("href", "https://example.com");
-  expect(
-    await requirements.locator("a").last().getAttribute("href"),
-  ).not.toMatch(/^javascript:/);
+  await expect(page.getByRole("table")).toBeVisible();
   expect(await page.evaluate(() => Object.hasOwn(window, "badMarkdown"))).toBe(
     false,
   );
-  await page.screenshot({ path: info.outputPath("Markdown展示.png") });
+  await expect(
+    page.getByRole("button", { name: "刷新", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "编辑产品信息" }).click();
   const dialog = page.getByRole("dialog", {
     name: "编辑产品信息",
     exact: true,
   });
-  await expect(
-    dialog.getByRole("textbox", { name: "特殊要求", exact: true }),
-  ).toHaveValue(source);
-  await expect(
-    dialog.getByRole("textbox", { name: "核心需求", exact: true }),
-  ).toHaveValue(product.coreRequirements);
-  await dialog.getByRole("button", { name: "增加字段", exact: true }).click();
-  await expect(dialog.getByRole("combobox")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "添加到表单" }).click();
-  await expect(dialog.getByText("请填写字段名称")).toBeVisible();
-  await dialog.getByLabel("字段名称", { exact: true }).fill("summary");
-  await dialog.getByRole("button", { name: "添加到表单" }).click();
-  await expect(dialog.getByText("该字段已经存在")).toBeVisible();
-  await dialog.getByLabel("字段名称", { exact: true }).fill("验收说明");
-  await dialog.getByRole("button", { name: "添加到表单" }).click();
-  const added =
-    "### 发布检查\n\n- [x] 已完成\n- [ ] 待完成\n\n    保留代码缩进\n";
-  await dialog
-    .getByRole("textbox", { name: "验收说明", exact: true })
-    .fill(added);
-  await page.screenshot({ path: info.outputPath("Markdown原文编辑.png") });
+  await expect(dialog.getByRole("textbox")).toHaveCount(1);
+  await expect(dialog.getByRole("button", { name: "增加字段" })).toHaveCount(0);
+  await expect(dialog.getByRole("textbox")).toHaveValue(source);
+  const changed = source + "\n\n## 发布检查\n\n- [x] 完成\n\n    保留缩进\n";
+  await dialog.getByRole("textbox").fill(changed);
   await dialog.getByRole("button", { name: "保存产品信息" }).click();
   await expect(dialog).toHaveCount(0);
-  expect(JSON.parse(await fs.readFile(file, "utf8"))).toEqual({
-    ...extended,
-    验收说明: added,
-  });
-  await page.reload();
+  expect(await fs.readFile(file, "utf8")).toBe(changed);
+  await expect(page.getByRole("heading", { name: "发布检查" })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("产品完整Markdown.png") });
+  await page.getByRole("button", { name: "文档", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "发布检查", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "编辑产品信息" }).click();
-  await expect(
-    dialog.getByRole("textbox", { name: "验收说明", exact: true }),
-  ).toHaveValue(added);
-  await dialog.getByRole("button", { name: "增加字段", exact: true }).click();
-  await dialog.getByLabel("字段名称", { exact: true }).fill("未保存的字段");
-  await dialog.getByRole("button", { name: "添加到表单" }).click();
-  page.once("dialog", (prompt) => prompt.accept());
-  await dialog.getByRole("button", { name: "取消", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  expect(JSON.parse(await fs.readFile(file, "utf8"))).not.toHaveProperty(
-    "未保存的字段",
-  );
-  expect(errors).toEqual([]);
+    page
+      .getByRole("navigation", { name: "文档目录" })
+      .getByRole("button", { name: "product.md" }),
+  ).toHaveCount(0);
 });
 
 for (const width of [1180, 390]) {
@@ -469,15 +408,15 @@ for (const width of [1180, 390]) {
     repo,
   }, info) => {
     await page.setViewportSize({ width, height: 844 });
-    const longProduct = {
-      ...product,
-      长文: Array.from(
-        { length: 100 },
-        (_, index) => `- 第 ${index + 1} 条说明`,
-      ).join("\n"),
-    };
-    const file = path.join(repo.root, ".agents/docs/product.json");
-    await fs.writeFile(file, JSON.stringify(longProduct));
+    const longProduct =
+      product +
+      "\n\n" +
+      Array.from(
+        { length: 80 },
+        (_, i) => `## 要求 ${i}\n\n用于检查滚动区域的详细产品说明。`,
+      ).join("\n\n");
+    const file = path.join(repo.root, ".agents/docs/product.md");
+    await fs.writeFile(file, longProduct);
     await page.goto(`${repo.url}/#project`);
     await expect(page.getByRole("heading", { name: "本地笔记" })).toBeVisible();
     const scroll = page.getByRole("region", {
@@ -514,10 +453,7 @@ for (const width of [1180, 390]) {
           window.scrollY === 0,
       ),
     ).toBe(true);
-    await fs.writeFile(
-      file,
-      JSON.stringify({ ...longProduct, 更新标记: "刷新完成" }),
-    );
+    await fs.writeFile(file, longProduct + "\n\n刷新完成");
     await expect(page.getByText("刷新完成", { exact: true })).toHaveCount(1);
     expect(await scroll.evaluate((el) => el.scrollTop)).toBe(500);
     await page.evaluate(() => {
@@ -559,7 +495,7 @@ test("目标旧列表兼容、Markdown 原文编辑与状态操作", async ({
     objective: "完成 **本地发布**",
     doneWhen: ["构建成功", "测试通过"],
     constraints: ["保留接口"],
-    progress: ["完成检查"],
+    progress: graph,
     附加说明: "## 发布注意\n\n请保留备份。",
   };
   await fs.writeFile(file, JSON.stringify(legacy));
@@ -581,19 +517,13 @@ test("目标旧列表兼容、Markdown 原文编辑与状态操作", async ({
   await expect(
     dialog.getByRole("textbox", { name: "附加说明", exact: true }),
   ).toHaveValue(legacy.附加说明);
-  const progress =
-    "### 验证结果\n\n- [x] 单元测试通过\n- [ ] 等待验收\n\n    npm test\n";
-  await dialog
-    .getByRole("textbox", { name: "进展记录", exact: true })
-    .fill(progress);
+  await expect(
+    dialog.getByRole("textbox", { name: "进展记录", exact: true }),
+  ).toHaveCount(0);
   await dialog.getByRole("button", { name: "保存目标", exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "验证结果" })).toBeVisible();
   const saved = JSON.parse(await fs.readFile(file, "utf8"));
-  expect(saved.progress).toBe(progress);
-  expect(Object.values(saved).every((value) => typeof value === "string")).toBe(
-    true,
-  );
+  expect(saved.progress).toEqual(graph);
   await page.screenshot({ path: info.outputPath("目标Markdown.png") });
   await page.getByRole("button", { name: "启用目标", exact: true }).click();
   await page.getByRole("button", { name: "完成目标", exact: true }).click();
@@ -604,4 +534,205 @@ test("目标旧列表兼容、Markdown 原文编辑与状态操作", async ({
     ...saved,
     status: "completed",
   });
+});
+
+test("文档分类、Markdown 编辑、外部同步和冲突保护", async ({
+  page,
+  repo,
+}, info) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(`${repo.url}/#docs`);
+  await expect(
+    page.getByRole("button", { name: "新增文件", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "新增类别", exact: true }).click();
+  await page.getByLabel("类别名称", { exact: true }).fill("工程要求");
+  await page.getByRole("button", { name: "保存类别", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "新增类别", exact: true }),
+  ).toHaveCount(0);
+  for (const [name, file] of [
+    ["验证要求", "testing.md"],
+    ["开发约定", "development.md"],
+  ]) {
+    await page.getByRole("button", { name: "新增文件", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "新增文件", exact: true });
+    await dialog.getByLabel("名称", { exact: true }).fill(name);
+    await dialog.getByLabel("文件路径", { exact: true }).fill(file);
+    await dialog.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(
+      dialog.getByText("请填写何时读取", { exact: true }),
+    ).toBeVisible();
+    await dialog
+      .getByLabel("何时读取", { exact: true })
+      .fill("修改代码或执行验证时读取。");
+    await dialog
+      .getByLabel("类别", { exact: true })
+      .selectOption({ label: "工程要求" });
+    await dialog
+      .getByLabel("Markdown 正文", { exact: true })
+      .fill(
+        "## 必要验证\n\n- **针对性检查**\n- [ ] 完成测试\n\n    保留缩进\n",
+      );
+    await dialog.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "必要验证", exact: true }),
+    ).toBeVisible();
+  }
+  const indexPath = path.join(repo.root, ".agents/docs/index.json");
+  const index = JSON.parse(await fs.readFile(indexPath, "utf8"));
+  expect(index.documents).toHaveLength(2);
+  expect(
+    new Set(
+      index.documents
+        .filter((d: { category: string | null }) => d.category !== null)
+        .map((d: { category: string }) => d.category),
+    ).size,
+  ).toBe(1);
+  expect(
+    index.documents.every((d: { file: string }) => d.file.endsWith(".md")),
+  ).toBe(true);
+  await page.screenshot({ path: info.outputPath("文档视图.png") });
+  const external = path.join(repo.root, ".agents/docs/external.md");
+  await fs.writeFile(external, "# 外部新增\n");
+  await expect(
+    page.getByRole("heading", { name: "待补充说明", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "external.md", exact: true }).click();
+  await page.getByRole("button", { name: "编辑文档", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: /^(编辑文档|编辑用户约定)$/,
+  });
+  await dialog.getByLabel("名称", { exact: true }).fill("外部规则");
+  await dialog
+    .getByLabel("何时读取", { exact: true })
+    .fill("每次开始开发时读取。");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole("button", { name: "编辑文档", exact: true }).click();
+  await expect(dialog.getByLabel("Markdown 正文", { exact: true })).toHaveValue(
+    "# 外部新增\n",
+  );
+  await dialog.getByLabel("Markdown 正文", { exact: true }).fill("本地草稿");
+  await fs.writeFile(external, "# 外部更新\n");
+  await expect(
+    dialog.getByText("文件或目录在编辑期间发生变化", { exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByLabel("Markdown 正文", { exact: true })).toHaveValue(
+    "本地草稿",
+  );
+  await expect(
+    dialog.getByRole("button", { name: "保存", exact: true }),
+  ).toBeDisabled();
+  page.once("dialog", (d) => d.accept());
+  await dialog.getByRole("button", { name: "重新加载", exact: true }).click();
+  await expect(dialog.getByLabel("Markdown 正文", { exact: true })).toHaveValue(
+    "# 外部更新\n",
+  );
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "AGENTS.md", exact: true }).click();
+  await page.getByRole("button", { name: "编辑文档", exact: true }).click();
+  const route = await dialog
+    .getByLabel("Markdown 正文", { exact: true })
+    .inputValue();
+  await dialog
+    .getByLabel("Markdown 正文", { exact: true })
+    .fill(`${route}\n## 用户规则\n保持中文\n`);
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "用户规则", exact: true }),
+  ).toBeVisible();
+  expect(
+    await fs.readFile(path.join(repo.root, "AGENTS.md"), "utf8"),
+  ).toContain("保持中文");
+  expect(
+    await fs.readFile(path.join(repo.root, ".agents/docs/product.md"), "utf8"),
+  ).toEqual(product);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "编辑文档", exact: true }).click();
+  await expect(
+    dialog.getByRole("button", { name: "保存", exact: true }),
+  ).toBeInViewport();
+  await page.screenshot({ path: info.outputPath("文档编辑移动端.png") });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("进展邻域、完整分支图、消息展开及完成保留路径", async ({
+  page,
+  repo,
+}, info) => {
+  const file = path.join(repo.root, ".agents/goals/path.json");
+  const data = {
+    title: "执行路径样例",
+    objective: "检查关键阶段",
+    doneWhen: "主要流程通过验证",
+    constraints: "保持简单",
+    status: "open",
+    progress: graph,
+  };
+  await fs.writeFile(file, JSON.stringify(data));
+  await page.goto(`${repo.url}/#goals/path`);
+  const summary = page.getByRole("region", { name: "进展摘要", exact: true });
+  await expect(summary.getByText("界面实现", { exact: true })).toBeVisible();
+  await expect(summary.getByText("旧方案", { exact: true })).toHaveCount(0);
+  const conditions = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("完成条件", { exact: true }) });
+  const constraints = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("任务约束", { exact: true }) });
+  const left = await conditions.boundingBox(),
+    below = await constraints.boundingBox(),
+    right = await summary.boundingBox();
+  expect(left!.x).toBe(below!.x);
+  expect(below!.y).toBeGreaterThan(left!.y);
+  expect(right!.x).toBeGreaterThan(left!.x);
+  await page.screenshot({ path: info.outputPath("进展摘要.png") });
+  await page.getByRole("button", { name: "查看完整路径" }).click();
+  await expect(page).toHaveURL(/goals\/path\/progress$/);
+  const full = page.getByRole("region", { name: "完整执行路径", exact: true });
+  await expect(full.getByText("旧方案", { exact: true })).toBeVisible();
+  await expect(full.locator('[data-edge="2-4"]')).toHaveCount(1);
+  await expect(full.locator('[data-edge="3-4"]')).toHaveCount(1);
+  const before = await full.locator('[data-edge="3-4"]').getAttribute("d");
+  await full.getByRole("button", { name: "后端实现", exact: true }).click();
+  await expect(
+    full.getByText("接口实现通过验证。", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() => full.locator('[data-edge="3-4"]').getAttribute("d"))
+    .not.toBe(before);
+  await page.screenshot({ path: info.outputPath("完整执行路径.png") });
+  await page.reload();
+  await expect(full.getByText("联合验证", { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: info.outputPath("路径窄屏.png") });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.getByRole("button", { name: "返回目标详情" }).click();
+  await page.getByRole("button", { name: "完成目标", exact: true }).click();
+  await expect(
+    page.getByText("目标已完成，路径仍有未完成节点", { exact: true }),
+  ).toBeVisible();
+  expect(JSON.parse(await fs.readFile(file, "utf8")).progress).toEqual(graph);
+  const broken = { ...data, progress: { ...graph, current: 999 } };
+  await fs.writeFile(file, JSON.stringify(broken));
+  await expect(summary.getByText(/进展路径无效/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "执行路径样例", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "编辑目标", exact: true }),
+  ).toBeDisabled();
 });

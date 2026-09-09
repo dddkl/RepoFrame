@@ -1,3 +1,4 @@
+import { graph } from "./fixtures/progress";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -12,7 +13,7 @@ const goal = {
   objective: "完成邮箱登录流程",
   doneWhen: "- 可以登录\n- 受保护路由正常工作",
   constraints: "",
-  progress: "",
+  progress: { current: null, nodes: [] },
   status: "open" as const,
 };
 const product = {
@@ -55,7 +56,7 @@ describe("常驻模式与按需目标", () => {
   it("启用恢复正常模式，阻止迭代，暂停保留进展后允许迭代", async () => {
     await store.setMode("iteration", (await state()).version);
     await store.createGoal(
-      { ...goal, progress: "- 已检查现有路由" },
+      { ...goal, progress: graph },
       "auth",
       true,
       (await state()).version,
@@ -74,7 +75,7 @@ describe("常驻模式与按需目标", () => {
       (await state()).version,
     );
     expect((await state()).data).toEqual({ mode: "default", activeGoal: null });
-    expect((await current("auth")).data.progress).toEqual("- 已检查现有路由");
+    expect((await current("auth")).data.progress).toEqual(graph);
     await store.setMode("iteration", (await state()).version);
     await store.goalAction(
       "auth",
@@ -117,7 +118,7 @@ describe("常驻模式与按需目标", () => {
     const { status: _, ...legacy } = goal;
     await fs.writeFile(
       path.join(root, ".agents/goals/legacy.json"),
-      JSON.stringify({ ...legacy, extra: "保留", progress: ["外部修改"] }),
+      JSON.stringify({ ...legacy, extra: "保留", progress: graph }),
     );
     expect((await current("legacy")).data.status).toBe("open");
     const old = await current("legacy");
@@ -127,36 +128,22 @@ describe("常驻模式与按需目标", () => {
 });
 
 describe("文件保全与错误诊断", () => {
-  it("旧产品只读转换，显式保存统一字符串，保留 Markdown 缩进并拒绝非字符串写入", async () => {
-    const legacy = {
-      ...product,
-      coreRequirements: ["需求一", "需求二\n详细说明"],
-      constraints: "",
-      extra: { enabled: false, count: 0 },
-      ticks: ["```"],
-    };
-    const source = JSON.stringify(legacy);
-    await fs.writeFile(path.join(root, PRODUCT), source);
-    const loaded = (await store.snapshot()).product!;
-    expect(loaded.data.coreRequirements).toBe("- 需求一\n- 需求二\n  详细说明");
-    expect(loaded.data.constraints).toBe("");
-    expect(loaded.data.extra).toContain('"enabled": false');
-    expect(await store.raw(PRODUCT)).toBe(source);
-    for (const invalid of [[], {}, false, 0, null]) {
-      await expect(
-        store.saveProduct({ ...loaded.data, extra: invalid }, loaded.version),
-      ).rejects.toMatchObject({ status: 422 });
-    }
-    const markdown = "    code\n\n- 项目  \n  下一行\n";
-    await store.saveProduct(
-      { ...loaded.data, summary: markdown },
-      loaded.version,
+  it("产品只读写完整 Markdown，不读取旧 JSON，支持空正文", async () => {
+    await fs.writeFile(
+      path.join(root, ".agents/docs/product.json"),
+      JSON.stringify(product),
     );
-    const saved = JSON.parse((await store.raw(PRODUCT))!);
-    expect(
-      Object.values(saved).every((value) => typeof value === "string"),
-    ).toBe(true);
-    expect(saved.summary).toBe(markdown);
+    expect((await store.snapshot()).product).toBeNull();
+    const markdown = "# 自定义标题\n\n    保留缩进\n";
+    await store.saveProduct(markdown, "");
+    expect(await store.raw(PRODUCT)).toBe(markdown);
+    const loaded = (await store.snapshot()).product!;
+    for (const invalid of [[], {}, false, 0, null])
+      await expect(
+        store.saveProduct(invalid, loaded.version),
+      ).rejects.toMatchObject({ status: 422 });
+    await store.saveProduct("", loaded.version);
+    expect((await store.snapshot()).product?.data).toBe("");
   });
   it("重复初始化保留原始入口、PRD、产品和状态且无重复路由", async () => {
     await fs.writeFile(
@@ -164,7 +151,7 @@ describe("文件保全与错误诊断", () => {
       "# 团队约定\n保留此内容\n",
     );
     await fs.writeFile(path.join(root, "PRD.md"), "原始产品需求");
-    await fs.writeFile(path.join(root, PRODUCT), JSON.stringify(product));
+    await fs.writeFile(path.join(root, PRODUCT), "# 测试产品");
     await store.setMode("iteration", (await state()).version);
     await initialize(root, path.resolve("templates"));
     const first = await store.raw("AGENTS.md");
@@ -174,7 +161,7 @@ describe("文件保全与错误诊断", () => {
     expect(first?.match(/repoframe:start/g)).toHaveLength(1);
     expect(await store.raw("PRD.md")).toBe("原始产品需求");
     expect((await state()).data.mode).toBe("iteration");
-    expect((await store.snapshot()).product?.data.summary).toBe("测试产品");
+    expect((await store.snapshot()).product?.data).toContain("测试产品");
   });
   it("拒绝重复 ID、保留名称和越界 ID", async () => {
     await store.createGoal(goal, "auth", false, (await state()).version);
@@ -236,16 +223,13 @@ describe("文件保全与错误诊断", () => {
     expect((await state()).data.activeGoal).toBeNull();
   });
   it("并发版本冲突不覆盖外部编辑，产品扩展字段保留", async () => {
-    await fs.writeFile(
-      path.join(root, PRODUCT),
-      JSON.stringify({ ...product, extra: "原始字段" }),
-    );
+    await fs.writeFile(path.join(root, PRODUCT), "# 测试产品\n\n原始字段");
     const old = (await store.snapshot()).product!;
-    await store.saveProduct({ ...product, summary: "更新" }, old.version);
-    await expect(store.saveProduct(product, old.version)).rejects.toMatchObject(
-      { status: 409 },
-    );
-    expect((await store.snapshot()).product?.data.extra).toBe("原始字段");
+    await store.saveProduct(old.data + "\n更新", old.version);
+    await expect(
+      store.saveProduct("过期更新", old.version),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await store.snapshot()).product?.data).toContain("原始字段");
     const before = await state();
     const results = await Promise.allSettled([
       store.setMode("iteration", before.version),

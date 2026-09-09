@@ -1,5 +1,6 @@
+import { emptyProgress } from "../shared/progress";
 import { useEffect, useState } from "react";
-import { PlusIcon, SaveIcon } from "lucide-react";
+import { SaveIcon } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +11,6 @@ import {
   FieldGroup,
   FieldDescription,
   FieldError,
-  FieldSet,
-  FieldLegend,
 } from "@/components/ui/field";
 import {
   Dialog,
@@ -24,14 +23,12 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/components/ui/toast";
 import { api } from "./api";
-import { productFieldLabel } from "./product-fields";
+
 import {
   goalSchema,
-  productSchema,
   idSchema,
   type GoalFile,
   type Snapshot,
-  type Product,
   type Goal,
 } from "../shared/protocol";
 
@@ -41,7 +38,7 @@ function errorsFor(error: z.ZodError): Errors {
     error.issues.map((issue) => [String(issue.path[0]), issue.message]),
   );
 }
-function useLeaveGuard(dirty: boolean) {
+export function useLeaveGuard(dirty: boolean) {
   useEffect(() => {
     const before = (event: BeforeUnloadEvent) => {
       if (dirty) {
@@ -79,7 +76,7 @@ function TextField({
       <FieldLabel htmlFor={name}>{label}</FieldLabel>
       <Control
         id={name}
-        value={value}
+        value={typeof value === "string" ? value : ""}
         onChange={(event) => change(event.target.value)}
         aria-invalid={!!error}
         aria-describedby={error ? `${name}-error` : undefined}
@@ -122,7 +119,7 @@ export function GoalEditor({
     objective: "",
     doneWhen: "",
     constraints: "",
-    progress: "",
+    progress: emptyProgress(),
     status: "open",
   };
   const [draft, setDraft] = useState<Goal>(structuredClone(initial));
@@ -199,11 +196,11 @@ export function GoalEditor({
           <DialogTitle>
             {original ? "编辑目标" : "创建复杂任务目标"}
           </DialogTitle>
-          <DialogDescription>
-            {original
-              ? "保留清晰的完成条件，让下一次执行能接着推进。"
-              : "只在复杂、耗时较长的任务中使用。普通创建不会改变当前模式。"}
-          </DialogDescription>
+          {!original && (
+            <DialogDescription>
+              只在复杂、耗时较长的任务中使用。普通创建不会改变当前模式。
+            </DialogDescription>
+          )}
         </DialogHeader>
         <form
           id="goal-form"
@@ -269,14 +266,6 @@ export function GoalEditor({
                 change={(value) => update("constraints", value)}
                 error={errors.constraints}
               />
-              <TextField
-                multiline
-                name="progress"
-                label="进展记录"
-                value={draft.progress}
-                change={(value) => update("progress", value)}
-                error={errors.progress}
-              />
               {Object.entries(draft)
                 .filter(
                   ([key]) =>
@@ -294,7 +283,7 @@ export function GoalEditor({
                     key={key}
                     name={`goal-extra-${index}`}
                     label={key}
-                    value={value}
+                    value={typeof value === "string" ? value : ""}
                     change={(text) => update(key, text)}
                     error={errors[key]}
                     multiline
@@ -349,195 +338,94 @@ export function ProductEditor({
   saved: () => Promise<void>;
   reload: () => void;
 }) {
-  const [draft, setDraft] = useState<Product>(structuredClone(original.data));
-  const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [nameError, setNameError] = useState("");
-  const [errors, setErrors] = useState<Errors>({});
+  const [draft, setDraft] = useState(original.data);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const canLeave = useLeaveGuard(
-    JSON.stringify(draft) !== JSON.stringify(original.data) || !!newName,
-  );
-  const changed = snapshot.product?.version !== original.version;
-  const update = <K extends keyof Product>(name: K, value: Product[K]) =>
-    setDraft({ ...draft, [name]: value });
-  const addField = () => {
-    const name = newName.trim();
-    if (!name) {
-      setNameError("请填写字段名称");
-      return;
-    }
-    if (Object.hasOwn(draft, name)) {
-      setNameError("该字段已经存在");
-      return;
-    }
-    if (["__proto__", "constructor", "prototype"].includes(name)) {
-      setNameError("不能使用系统保留名称");
-      return;
-    }
-    setDraft({ ...draft, [name]: "" });
-    setNewName("");
-    setNameError("");
-    setAdding(false);
-    requestAnimationFrame(() =>
-      document
-        .getElementById(`product-field-${Object.keys(draft).length}`)
-        ?.focus(),
-    );
-  };
-  const submit = async () => {
-    if (adding && newName.trim()) {
-      setNameError("请先将字段添加到表单，或取消新增");
-      return;
-    }
-    const checked = productSchema.safeParse(draft);
-    if (!checked.success) {
-      setErrors(errorsFor(checked.error));
-      return;
-    }
-    setPending(true);
-    setError("");
-    setErrors({});
-    try {
-      await api("/product", "PUT", {
-        data: checked.data,
-        version: original.version,
-      });
-      await saved();
-      toast.add({ title: "产品信息已保存", type: "success" });
-      close();
-    } catch (error) {
-      setError((error as Error).message);
-      await saved();
-    } finally {
-      setPending(false);
-    }
+  const canLeave = useLeaveGuard(draft !== original.data);
+  const changed = (snapshot.product?.version ?? "") !== original.version;
+  const finish = () => {
+    if (!pending && canLeave()) close();
   };
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !pending && canLeave()) close();
+        if (!open) finish();
       }}
     >
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-xl">
+      <DialogContent
+        className="flex max-h-[90dvh] flex-col sm:max-w-4xl"
+        showCloseButton={!pending}
+      >
         <DialogHeader>
           <DialogTitle>编辑产品信息</DialogTitle>
-          <DialogDescription>
-            每个字段支持 Markdown，保存后在项目页展示排版效果。
-          </DialogDescription>
         </DialogHeader>
         <form
-          id="product-form"
-          noValidate
-          onSubmit={(event) => {
+          className="flex min-h-0 flex-col gap-5"
+          onSubmit={async (event) => {
             event.preventDefault();
-            void submit();
+            setPending(true);
+            setError("");
+            try {
+              await api("/product", "PUT", {
+                data: draft,
+                version: original.version,
+              });
+              await saved();
+              close();
+              toast.add({ title: "产品信息已保存", type: "success" });
+            } catch (error) {
+              setError((error as Error).message);
+              await saved();
+            } finally {
+              setPending(false);
+            }
           }}
         >
-          <fieldset disabled={pending} className="min-w-0">
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-1 [scrollbar-gutter:stable]">
+            {changed && (
+              <ChangedNotice
+                onReload={() => {
+                  if (canLeave()) reload();
+                }}
+              />
+            )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertTitle>未能保存</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <FieldGroup>
-              {changed && (
-                <ChangedNotice
-                  onReload={() => {
-                    if (canLeave()) reload();
-                  }}
+              <Field>
+                <FieldLabel htmlFor="product-markdown" className="sr-only">
+                  产品 Markdown 正文
+                </FieldLabel>
+                <Textarea
+                  id="product-markdown"
+                  className="min-h-[50dvh]"
+                  value={draft}
+                  disabled={pending}
+                  onChange={(e) => setDraft(e.target.value)}
                 />
-              )}
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTitle>未能保存</AlertTitle>
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              {adding ? (
-                <FieldSet>
-                  <FieldLegend variant="label">增加字段</FieldLegend>
-                  <FieldGroup>
-                    <TextField
-                      name="new-product-field"
-                      label="字段名称"
-                      value={newName}
-                      change={setNewName}
-                      error={nameError}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={addField}
-                      >
-                        <PlusIcon data-icon="inline-start" />
-                        添加到表单
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          setAdding(false);
-                          setNewName("");
-                          setNameError("");
-                        }}
-                      >
-                        取消新增
-                      </Button>
-                    </div>
-                  </FieldGroup>
-                </FieldSet>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="self-start"
-                  onClick={() => {
-                    setAdding(true);
-                    requestAnimationFrame(() =>
-                      document.getElementById("new-product-field")?.focus(),
-                    );
-                  }}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  增加字段
-                </Button>
-              )}
-              {Object.entries(draft).map(([key, value], index) => {
-                const label = productFieldLabel(key);
-                const name = `product-field-${index}`;
-                return (
-                  <TextField
-                    key={key}
-                    name={name}
-                    label={label}
-                    value={value}
-                    change={(text) => update(key, text)}
-                    error={errors[key]}
-                    multiline
-                  />
-                );
-              })}
+              </Field>
             </FieldGroup>
-          </fieldset>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={pending}
+              onClick={finish}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={pending || changed}>
+              <SaveIcon data-icon="inline-start" />
+              {pending ? "正在保存…" : "保存产品信息"}
+            </Button>
+          </DialogFooter>
         </form>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={pending}
-            onClick={() => {
-              if (canLeave()) close();
-            }}
-          >
-            取消
-          </Button>
-          <Button
-            type="submit"
-            form="product-form"
-            disabled={pending || changed}
-          >
-            <SaveIcon data-icon="inline-start" />
-            {pending ? "正在保存…" : "保存产品信息"}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -7,18 +7,19 @@ import {
   parse,
   stateSchema,
   productSchema,
-  productReadSchema,
   goalSchema,
   goalReadSchema,
+  goalBasicReadSchema,
   idSchema,
   type Mode,
   type Snapshot,
   type FileValue,
   type Goal,
 } from "./shared/protocol";
+import { emptyProgress } from "./shared/progress";
 
 export const STATE = ".agents/state.json";
-export const PRODUCT = ".agents/docs/product.json";
+export const PRODUCT = ".agents/docs/product.md";
 export const GOALS = ".agents/goals";
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 const missing = (error: unknown) =>
@@ -130,7 +131,14 @@ export class Store {
       }
     };
     result.state = await inspect(STATE, stateSchema);
-    result.product = await inspect(PRODUCT, productReadSchema);
+    try {
+      result.product = await this.readProduct();
+    } catch (error) {
+      result.diagnostics.push({
+        file: PRODUCT,
+        message: (error as Error).message,
+      });
+    }
     if (!result.state && !result.diagnostics.some((d) => d.file === STATE))
       result.diagnostics.push({
         file: STATE,
@@ -157,8 +165,21 @@ export class Store {
           });
           continue;
         }
-        const goal = await inspect(`${GOALS}/${entry.name}`, goalReadSchema);
-        if (goal) result.goals.push({ id, ...goal });
+        const file = `${GOALS}/${entry.name}`;
+        try {
+          const goal = await this.read(file, goalReadSchema);
+          if (goal) result.goals.push({ id, ...goal });
+        } catch (error) {
+          const message = (error as Error).message;
+          const basic = await inspect(file, goalBasicReadSchema);
+          if (basic)
+            result.goals.push({
+              id,
+              version: basic.version,
+              data: { ...basic.data, progress: emptyProgress() },
+              progressError: `进展路径无效：${message}。旧进展请运行 init 迁移。`,
+            });
+        }
       }
     } catch (error) {
       if (!missing(error))
@@ -203,20 +224,23 @@ export class Store {
 
   saveProduct(value: unknown, version: unknown) {
     return this.serial(async () => {
-      const current = await this.read(PRODUCT, productReadSchema);
-      if (!current)
-        throw new AppError("请先通过初始化 Skill 确认产品信息", 409);
-      if (version !== current.version)
+      const current = await this.readProduct();
+      if (version !== (current?.version ?? ""))
         throw new AppError("产品信息已变化，请重新加载后保存", 409);
-      await this.json(
+      const content = parse(productSchema, value);
+      await this.write(
         PRODUCT,
-        parse(productSchema, {
-          ...current.data,
-          ...parse(productSchema, value),
-        }),
-        current.version,
+        content,
+        current?.version.startsWith("md:") ? current.version.slice(3) : null,
       );
     });
+  }
+
+  async readProduct(): Promise<FileValue<string> | null> {
+    const markdown = await this.raw(PRODUCT);
+    if (markdown !== null)
+      return { data: markdown, version: `md:${hash(markdown)}` };
+    return null;
   }
 
   createGoal(

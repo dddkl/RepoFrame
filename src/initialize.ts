@@ -1,12 +1,20 @@
+import { organizeAgents } from "./agents-document";
 import { promises as fs } from "node:fs";
 import { Store, STATE, GOALS } from "./store";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { DOC_INDEX } from "./documents";
+import { emptyIndex } from "./shared/documents";
+import { initializeProgress } from "./progress-initialize";
 
 export async function initialize(root: string, templates: string) {
   const store = new Store(root);
   return store.serial(async () => {
     const changed: string[] = [];
+    if ((await store.raw(DOC_INDEX)) === null) {
+      await store.json(DOC_INDEX, emptyIndex(), null);
+      changed.push(DOC_INDEX);
+    }
     for (const dir of [".agents/docs", GOALS, ".agents/skills/repoframe-init"])
       await fs.mkdir(await store.safePath(dir), { recursive: true });
     if ((await store.raw(STATE)) === null) {
@@ -15,14 +23,20 @@ export async function initialize(root: string, templates: string) {
     }
     const route = await fs.readFile(path.join(templates, "AGENTS.md"), "utf8");
     const existing = await store.raw("AGENTS.md");
-    if (existing === null) {
-      await store.write("AGENTS.md", route, null);
-      changed.push("AGENTS.md");
-    } else if (!existing.includes("<!-- repoframe:start -->")) {
+    const organized = organizeAgents(existing, route);
+    if (organized !== existing) {
+      if (existing !== null)
+        await store.write(
+          ".agents/backups/agents-" + Date.now() + ".md",
+          existing,
+          null,
+        );
       await store.write(
         "AGENTS.md",
-        `${existing.trimEnd()}\n\n${route}`,
-        createHash("sha256").update(existing).digest("hex"),
+        organized,
+        existing === null
+          ? null
+          : createHash("sha256").update(existing).digest("hex"),
       );
       changed.push("AGENTS.md");
     }
@@ -38,6 +52,7 @@ export async function initialize(root: string, templates: string) {
       );
       changed.push(skillPath);
     }
+    await initializeProgress(store, templates, changed);
     return { changed, hasPrd: (await store.raw("PRD.md")) !== null };
   });
 }

@@ -41,7 +41,7 @@ it("API 完整执行创建、启用、阻止迭代、暂停和完成", async () 
     objective: "实现流程",
     doneWhen: "- 验证通过",
     constraints: "",
-    progress: "",
+    progress: { current: null, nodes: [] },
   };
   const created = await request("/api/goals", "POST", {
     data: goal,

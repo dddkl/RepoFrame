@@ -1,3 +1,4 @@
+import { ProgressPanel, FullProgress } from "./progress-path";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeftIcon,
@@ -12,7 +13,6 @@ import {
   PencilIcon,
   PlayIcon,
   PlusIcon,
-  RefreshCwIcon,
   RocketIcon,
   TargetIcon,
 } from "lucide-react";
@@ -59,16 +59,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster, toast } from "@/components/ui/toast";
 import { api, useProject } from "./api";
 import { GoalEditor, ProductEditor } from "./editors";
-import {
-  ProductFields,
-  MarkdownContent,
-  MarkdownTitle,
-} from "./product-fields";
+import { MarkdownContent, MarkdownTitle } from "./product-fields";
 import { ModeControl, QuickStart } from "./quick-start";
+import { DocumentsView } from "./documents";
 import type { GoalFile, Mode, Snapshot } from "../shared/protocol";
 
 const INIT_PROMPT =
-  "请读取 .agents/skills/repoframe-init/SKILL.md，从 PRD.md 提炼稳定产品信息，向我展示并确认后写入 .agents/docs/product.json。";
+  "请读取 .agents/skills/repoframe-init/SKILL.md，从 PRD.md 提炼稳定产品信息，向我展示并确认后写入 .agents/docs/product.md。";
 const CONTINUE_PROMPT =
   "请读取 AGENTS.md 和 .agents/state.json，确认处于 default 模式后，读取当前目标文件及产品信息，根据已有进展继续推进当前目标，完成必要验证并记录真实结果。";
 async function copy(text: string) {
@@ -111,6 +108,7 @@ function Navigation({
             <SidebarMenu>
               {[
                 { id: "start", label: "快速开始", icon: RocketIcon },
+                { id: "docs", label: "文档", icon: FileTextIcon },
                 { id: "project", label: "项目", icon: LayoutDashboardIcon },
                 { id: "goals", label: "目标", icon: TargetIcon },
               ].map(({ id, label, icon: Icon }) => (
@@ -184,7 +182,7 @@ export default function App() {
   }, []);
   const activeId = snapshot?.state?.data.activeGoal;
   const detail = page.startsWith("goals/")
-    ? snapshot?.goals.find((g) => g.id === page.slice(6))
+    ? snapshot?.goals.find((g) => g.id === page.split("/")[1])
     : null;
   const mode = snapshot?.state?.data.mode;
   const canWrite = !!snapshot?.state && !busy && connected;
@@ -239,7 +237,7 @@ export default function App() {
     <div className="flex flex-wrap gap-2">
       <Button
         variant="outline"
-        disabled={!canWrite}
+        disabled={!canWrite || !!goal.progressError}
         onClick={() => setGoalEditor({ original: goal, key: goal.version })}
       >
         <PencilIcon data-icon="inline-start" />
@@ -304,7 +302,9 @@ export default function App() {
                     ? "快速开始"
                     : page === "project"
                       ? "项目"
-                      : "目标"}
+                      : page === "docs"
+                        ? "文档"
+                        : "目标"}
                 </span>
               </div>
               <ModeControl
@@ -355,7 +355,7 @@ export default function App() {
                       .filter(
                         (d) =>
                           !(
-                            d.file === ".agents/docs/product.json" &&
+                            d.file === ".agents/docs/product.md" &&
                             d.message.startsWith("产品信息尚未确认")
                           ),
                       )
@@ -374,6 +374,8 @@ export default function App() {
                         action={action}
                         pauseMissing={pauseMissing}
                       />
+                    ) : page === "docs" ? (
+                      <DocumentsView revision={snapshot} disabled={!canWrite} />
                     ) : page === "project" ? (
                       <>
                         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -382,24 +384,13 @@ export default function App() {
                               项目概览
                             </p>
                             <h1>{snapshot.repo.name}</h1>
-                            <p className="text-sm text-muted-foreground">
-                              让 Agent 清楚项目方向，也清楚这一次该如何工作。
-                            </p>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => void refresh()}
-                          >
-                            <RefreshCwIcon data-icon="inline-start" />
-                            刷新
-                          </Button>
                         </div>
                         <div className="flex flex-col gap-7">
                           <Card>
                             <CardHeader>
                               <CardTitle>产品信息</CardTitle>
-                              {snapshot.product && (
+                              {
                                 <CardAction className="flex items-center gap-2">
                                   <Button
                                     variant="ghost"
@@ -407,18 +398,23 @@ export default function App() {
                                     aria-label="编辑产品信息"
                                     disabled={!canWrite}
                                     onClick={() => {
-                                      setProductEditor(snapshot.product);
+                                      setProductEditor(
+                                        snapshot.product ?? {
+                                          data: "",
+                                          version: "",
+                                        },
+                                      );
                                     }}
                                   >
                                     <PencilIcon data-icon="inline-start" />
                                   </Button>
                                 </CardAction>
-                              )}
+                              }
                             </CardHeader>
                             <CardContent className="flex flex-col gap-6">
                               {snapshot.product ? (
-                                <ProductFields
-                                  product={snapshot.product.data}
+                                <MarkdownContent
+                                  value={snapshot.product.data}
                                 />
                               ) : (
                                 <Empty>
@@ -454,6 +450,8 @@ export default function App() {
                           </Card>
                         </div>
                       </>
+                    ) : detail && page.endsWith("/progress") ? (
+                      <FullProgress goal={detail} navigate={navigate} />
                     ) : detail ? (
                       <>
                         <Button
@@ -507,46 +505,30 @@ export default function App() {
                             </AlertDescription>
                           </Alert>
                         )}
-                        <div className="grid items-start gap-6 lg:grid-cols-2">
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>完成条件</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <MarkdownContent value={detail.data.doneWhen} />
-                            </CardContent>
-                          </Card>
-                          <Card>
-                            <CardHeader>
-                              <CardTitle>任务约束</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <MarkdownContent
-                                value={detail.data.constraints}
-                                empty="未设置额外任务约束"
-                              />
-                            </CardContent>
-                          </Card>
+                        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                          <div className="flex min-w-0 flex-col gap-6">
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>完成条件</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <MarkdownContent value={detail.data.doneWhen} />
+                              </CardContent>
+                            </Card>
+                            <Card>
+                              <CardHeader>
+                                <CardTitle>任务约束</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <MarkdownContent
+                                  value={detail.data.constraints}
+                                  empty="未设置额外任务约束"
+                                />
+                              </CardContent>
+                            </Card>
+                          </div>
+                          <ProgressPanel goal={detail} navigate={navigate} />
                         </div>
-                        <Card>
-                          <CardHeader>
-                            <CardTitle>进展记录</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            {detail.data.progress.trim() ? (
-                              <MarkdownContent value={detail.data.progress} />
-                            ) : (
-                              <Empty>
-                                <EmptyHeader>
-                                  <EmptyTitle>等待第一条进展</EmptyTitle>
-                                  <EmptyDescription>
-                                    推进任务后，由 Agent 或你记录真实完成内容。
-                                  </EmptyDescription>
-                                </EmptyHeader>
-                              </Empty>
-                            )}
-                          </CardContent>
-                        </Card>
                         {Object.entries(detail.data)
                           .filter(
                             ([key]) =>
@@ -565,7 +547,9 @@ export default function App() {
                                 <CardTitle>{key}</CardTitle>
                               </CardHeader>
                               <CardContent>
-                                <MarkdownContent value={value} />
+                                <MarkdownContent
+                                  value={typeof value === "string" ? value : ""}
+                                />
                               </CardContent>
                             </Card>
                           ))}
@@ -673,7 +657,7 @@ export default function App() {
                                   </CardHeader>
                                   <CardContent>
                                     <p className="text-xs text-muted-foreground">
-                                      {goal.data.progress.trim()
+                                      {goal.data.progress.nodes.length
                                         ? "已记录进展"
                                         : "尚无进展记录"}
                                     </p>
@@ -725,9 +709,6 @@ export default function App() {
                             </Empty>
                           )}
                         </div>
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          启用目标会进入正常开发。先暂停或完成当前目标，才能切换到小步迭代。
-                        </p>
                       </>
                     )}
                   </>
@@ -762,7 +743,9 @@ export default function App() {
               snapshot={snapshot}
               close={() => setProductEditor(null)}
               saved={refresh}
-              reload={() => setProductEditor(snapshot.product)}
+              reload={() =>
+                setProductEditor(snapshot.product ?? { data: "", version: "" })
+              }
             />
           )}
         </SidebarProvider>

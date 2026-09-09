@@ -60,7 +60,7 @@ export function ModeControl({
         disabled={disabled}
         aria-label="正常开发"
         className={cn(
-          !compact && "relative h-28 min-w-0 flex-1 flex-col gap-3",
+          !compact && "relative h-32 md:h-36 min-w-0 flex-1 flex-col gap-3",
         )}
       >
         {!compact && (
@@ -82,7 +82,7 @@ export function ModeControl({
         title={activeGoal ? "请先暂停或完成当前目标" : undefined}
         aria-label="小步迭代"
         className={cn(
-          !compact && "relative h-28 min-w-0 flex-1 flex-col gap-3",
+          !compact && "relative h-32 md:h-36 min-w-0 flex-1 flex-col gap-3",
         )}
       >
         {!compact && <ZapIcon data-icon="inline-start" />}
@@ -114,16 +114,18 @@ export function QuickStart({
   const activeId = snapshot.state?.data.activeGoal;
   const active = snapshot.goals.find((goal) => goal.id === activeId);
   return (
-    <div className="flex w-full max-w-5xl flex-col gap-8 self-center py-2 md:py-6">
+    <div className="flex w-full max-w-5xl flex-col gap-10 self-center py-4 md:py-8">
       <div className="flex min-w-0 items-center gap-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-          <FolderCodeIcon className="size-6" />
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          <FolderCodeIcon className="size-8" />
         </div>
-        <h1 className="break-words">{snapshot.repo.name}</h1>
+        <h1 className="break-words text-3xl md:text-4xl">
+          {snapshot.repo.name}
+        </h1>
       </div>
-      <div className="grid items-stretch gap-5 md:grid-cols-2">
+      <div className="flex flex-col gap-7">
         <Card
-          className="[--card-spacing:--spacing(6)]"
+          className="[--card-spacing:--spacing(6)] md:[--card-spacing:--spacing(8)]"
           role="region"
           aria-label="开发模式面板"
         >
@@ -145,7 +147,7 @@ export function QuickStart({
           </CardContent>
         </Card>
         <Card
-          className="[--card-spacing:--spacing(6)]"
+          className="[--card-spacing:--spacing(6)] md:[--card-spacing:--spacing(8)]"
           role="region"
           aria-label="当前目标面板"
         >
@@ -157,7 +159,7 @@ export function QuickStart({
               </Badge>
             </CardAction>
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col justify-center gap-3">
+          <CardContent className="flex min-h-28 flex-1 flex-col justify-center gap-3">
             {active ? (
               <>
                 <h2 className="break-words">
@@ -178,46 +180,51 @@ export function QuickStart({
               </Empty>
             )}
           </CardContent>
-          <CardFooter className="flex-wrap gap-2">
-            {!active ? (
-              <EmptyContent className="max-w-none items-start">
-                {activeId ? (
+          <CardFooter className="flex-col items-stretch gap-4">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              启用目标会进入正常开发。先暂停或完成当前目标，才能切换到小步迭代。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {!active ? (
+                <EmptyContent className="max-w-none items-start">
+                  {activeId ? (
+                    <Button
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={pauseMissing}
+                    >
+                      暂停失效的当前目标
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => navigate("goals")}>
+                      选择目标
+                      <ArrowRightIcon data-icon="inline-end" />
+                    </Button>
+                  )}
+                </EmptyContent>
+              ) : (
+                <>
+                  <Button onClick={() => navigate(`goals/${active.id}`)}>
+                    打开目标
+                    <ArrowRightIcon data-icon="inline-end" />
+                  </Button>
                   <Button
                     variant="outline"
                     disabled={disabled}
-                    onClick={pauseMissing}
+                    onClick={() => action(active, "pause")}
                   >
-                    暂停失效的当前目标
+                    暂停目标
                   </Button>
-                ) : (
-                  <Button variant="outline" onClick={() => navigate("goals")}>
-                    选择目标
-                    <ArrowRightIcon data-icon="inline-end" />
+                  <Button
+                    variant="outline"
+                    disabled={disabled}
+                    onClick={() => action(active, "complete")}
+                  >
+                    完成目标
                   </Button>
-                )}
-              </EmptyContent>
-            ) : (
-              <>
-                <Button onClick={() => navigate(`goals/${active.id}`)}>
-                  打开目标
-                  <ArrowRightIcon data-icon="inline-end" />
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() => action(active, "pause")}
-                >
-                  暂停目标
-                </Button>
-                <Button
-                  variant="outline"
-                  disabled={disabled}
-                  onClick={() => action(active, "complete")}
-                >
-                  完成目标
-                </Button>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </CardFooter>
         </Card>
       </div>

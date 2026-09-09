@@ -8,6 +8,7 @@ import { EventEmitter } from "node:events";
 import { watch } from "chokidar";
 import { z } from "zod";
 import { Store } from "./store";
+import { Documents } from "./documents";
 import { AppError, parse, modeSchema } from "./shared/protocol";
 
 export function createApp(
@@ -17,6 +18,7 @@ export function createApp(
   port?: number,
 ) {
   const app = new Hono();
+  const documents = new Documents(store);
   app.use("*", async (c, next) => {
     const request = new URL(c.req.url);
     const host = c.req.header("host") || request.host;
@@ -68,6 +70,50 @@ export function createApp(
     );
   });
   app.get("/api/project", async (c) => c.json(await store.snapshot()));
+  app.get("/api/documents", async (c) => c.json(await documents.snapshot()));
+  app.post("/api/documents/categories", async (c) => {
+    const body = parse(
+      z.object({
+        name: z.string(),
+        id: z.string().optional(),
+        version: z.string().nullable(),
+      }),
+      await c.req.json(),
+    );
+    await documents.category(body.name, body.id, body.version);
+    events.emit("change");
+    return c.json(await documents.snapshot());
+  });
+  app.put("/api/documents/agents", async (c) => {
+    const body = parse(
+      z.object({ content: z.string(), version: z.string().nullable() }),
+      await c.req.json(),
+    );
+    await documents.saveAgents(body.content, body.version);
+    events.emit("change");
+    return c.json(await documents.snapshot());
+  });
+  app.put("/api/documents/file", async (c) => {
+    const body = parse(
+      z.object({
+        file: z.string(),
+        content: z.string(),
+        version: z.string().nullable(),
+        metadata: z.unknown(),
+        indexVersion: z.string().nullable(),
+      }),
+      await c.req.json(),
+    );
+    await documents.save(
+      body.file,
+      body.content,
+      body.version,
+      body.metadata,
+      body.indexVersion,
+    );
+    events.emit("change");
+    return c.json(await documents.snapshot());
+  });
   app.get("/api/goals", async (c) => {
     const data = await store.snapshot();
     return c.json({ goals: data.goals, diagnostics: data.diagnostics });
@@ -219,14 +265,17 @@ export async function startServer(root: string, webRoot: string, port: number) {
     server.once("listening", resolve);
     server.once("error", reject);
   });
-  const watcher = watch(path.join(root, ".agents"), {
-    ignoreInitial: true,
-    followSymlinks: false,
-    depth: 3,
-    awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
-  });
+  const watcher = watch(
+    [path.join(root, ".agents"), path.join(root, "AGENTS.md")],
+    {
+      ignoreInitial: true,
+      followSymlinks: false,
+      awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 },
+    },
+  );
   watcher.on("all", (_event, file) => {
-    if (file.endsWith(".json") || !path.extname(file)) events.emit("change");
+    if (file.endsWith(".json") || file.endsWith(".md") || !path.extname(file))
+      events.emit("change");
   });
   watcher.on("error", (error) => console.error("文件监听失败：", error));
   const address = server.address();

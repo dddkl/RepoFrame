@@ -1,5 +1,6 @@
 import { z } from "zod";
 import zhCN from "zod/v4/locales/zh-CN.js";
+import { progressSchema } from "./progress";
 
 z.config(zhCN());
 
@@ -26,15 +27,7 @@ const requiredMarkdown = markdown.refine(
   (value) => value.trim().length > 0,
   "不能为空",
 );
-export const productSchema = z
-  .object({
-    summary: requiredMarkdown,
-    users: requiredMarkdown,
-    coreRequirements: requiredMarkdown,
-    constraints: markdown,
-    nonGoals: markdown,
-  })
-  .catchall(markdown);
+export const productSchema = z.string();
 
 // Read old files without changing them. An explicit save writes the string format.
 export function legacyMarkdown(value: unknown): string {
@@ -54,23 +47,26 @@ export function legacyMarkdown(value: unknown): string {
 function normalizeMarkdownFields(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, legacyMarkdown(item)]),
+    Object.entries(value).map(([key, item]) => [
+      key,
+      key === "progress" ? item : legacyMarkdown(item),
+    ]),
   );
 }
-export const productReadSchema = z.preprocess(
-  normalizeMarkdownFields,
-  productSchema,
-);
 export const goalSchema = z
   .object({
     title: requiredMarkdown,
     objective: requiredMarkdown,
     doneWhen: requiredMarkdown,
     constraints: markdown,
-    progress: markdown,
+    progress: progressSchema,
     status: z.enum(["open", "completed"]).default("open"),
   })
-  .catchall(markdown);
+  .catchall(z.union([markdown, progressSchema]));
+export const goalBasicReadSchema = z.preprocess(
+  normalizeMarkdownFields,
+  goalSchema.omit({ progress: true }).extend({ progress: z.unknown() }),
+);
 export const goalReadSchema = z.preprocess(normalizeMarkdownFields, goalSchema);
 
 export type Mode = z.infer<typeof modeSchema>;
@@ -78,7 +74,7 @@ export type State = z.infer<typeof stateSchema>;
 export type Product = z.infer<typeof productSchema>;
 export type Goal = z.infer<typeof goalSchema>;
 export type FileValue<T> = { data: T; version: string };
-export type GoalFile = FileValue<Goal> & { id: string };
+export type GoalFile = FileValue<Goal> & { id: string; progressError?: string };
 export type Diagnostic = { file: string; message: string };
 export type Snapshot = {
   repo: { name: string; path: string };
